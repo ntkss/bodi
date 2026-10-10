@@ -717,6 +717,9 @@ export const App: React.FC = () => {
           <p className="text-[11px] text-slate-400">
             ระบบจัดการฟาร์มกุ้ง ปู และสัตว์น้ำครอบครัว เชื่อมต่อฐานข้อมูลคลาวด์ปลอดภัย
           </p>
+          <p className="text-[11px] text-slate-400 pt-1 font-mono">
+            v{__APP_VERSION__} ({__COMMIT_HASH__})
+          </p>
         </div>
       </footer>
 

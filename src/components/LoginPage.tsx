@@ -121,8 +121,11 @@ export const LoginPage: React.FC = () => {
       </main>
 
       {/* Footer */}
-      <footer className="py-4 text-center text-xs text-slate-400">
+      <footer className="py-4 text-center text-xs text-slate-400 space-y-0.5">
         <p>บ่อดี (BODI) — ระบบจัดการฟาร์มสัตว์น้ำขนาดเล็ก</p>
+        <p className="text-[11px] text-slate-400 font-mono">
+          v{__APP_VERSION__} ({__COMMIT_HASH__})
+        </p>
       </footer>
     </div>
   );
