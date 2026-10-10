@@ -9,10 +9,11 @@ import {
   Bell,
   BellRing,
   User as UserIcon,
+  ShieldAlert,
 } from 'lucide-react';
 import { formatThaiDate } from '../lib/date';
 
-export type AppTab = 'DASHBOARD' | 'PONDS' | 'FINANCE';
+export type AppTab = 'DASHBOARD' | 'PONDS' | 'RISK' | 'FINANCE';
 
 interface HeaderProps {
   farmName: string;
@@ -178,6 +179,19 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <Fish className="w-4 h-4" />
             <span>บ่อเลี้ยง</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onTabChange('RISK')}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'RISK'
+                ? 'bg-white text-amber-900 shadow-xs'
+                : 'text-sky-100 hover:text-white hover:bg-sky-600/50'
+            }`}
+          >
+            <ShieldAlert className="w-4 h-4" />
+            <span>ความเสี่ยง</span>
           </button>
 
           <button

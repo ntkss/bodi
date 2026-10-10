@@ -33,7 +33,7 @@ import {
   WaterRiskAssessment,
   TideWindowInfo,
 } from './types';
-import { Fish, Plus, Check, Loader2, Sparkles } from 'lucide-react';
+import { Fish, Plus, Check, Loader2, Sparkles, ShieldAlert, ArrowRight } from 'lucide-react';
 
 export const App: React.FC = () => {
   const {
@@ -615,16 +615,41 @@ export const App: React.FC = () => {
               onAddObservation={() => handleOpenAddLog(undefined, 'ANIMAL_OBSERVATION')}
             />
 
-            {/* 4. Environmental Minimal Water-Risk View (Milestone 2) */}
-            <EnvironmentalCard
-              stations={stations}
-              farm={farm}
-              riskAssessment={waterRiskAssessment}
-              tideWindow={tideWindow}
-              onOpenLocationModal={() => setIsLocationModalOpen(true)}
-              onSyncVerifiedSource={handleSyncEnvironmental}
-              isSyncing={isSyncingEnvironmental}
-            />
+            {/* 4. Compact Risk Bar linking to 'RISK' Tab */}
+            <div
+              onClick={() => setActiveTab('RISK')}
+              className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-3.5 mb-6 flex items-center justify-between gap-3 hover:border-amber-300 hover:bg-amber-50/20 transition-all cursor-pointer group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0 border border-amber-200/60">
+                  <ShieldAlert className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-900">
+                      สภาวะความเสี่ยงน้ำธรรมชาติ:
+                    </span>
+                    <span
+                      className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                        waterRiskAssessment?.statusLabel === 'เฝ้าระวัง'
+                          ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                          : 'bg-sky-100 text-sky-900 border border-sky-300'
+                      }`}
+                    >
+                      {waterRiskAssessment?.statusLabel || 'ควรตรวจน้ำ'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">
+                    {waterRiskAssessment?.summaryText ||
+                      'ตรวจวัดค่าน้ำและระดับน้ำจริงก่อนจัดการน้ำ'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 text-xs font-bold text-sky-700 group-hover:translate-x-0.5 transition-transform shrink-0">
+                <span>เปิดดูเมนูความเสี่ยง</span>
+                <ArrowRight className="w-4 h-4" />
+              </div>
+            </div>
 
             {/* 5. Active Ponds Status List or Empty State */}
             <div className="mt-6 mb-8">
@@ -769,7 +794,40 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 3: FINANCE & ACCOUNTING */}
+        {/* TAB 3: WATER & FARM RISK (ความเสี่ยง) */}
+        {activeTab === 'RISK' && (
+          <div className="space-y-6">
+            {/* Header Banner */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-2xs">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+                  <ShieldAlert className="w-5 h-5 text-amber-700" />
+                </div>
+                <div>
+                  <h2 className="text-lg sm:text-xl font-bold text-slate-900 font-prompt">
+                    ศูนย์เฝ้าระวังความเสี่ยง (Water & Environmental Risk)
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    ประเมินสภาวะแวดล้อม ปริมาณฝน คลองส่งน้ำ และมาตราน้ำทำนายรอบฟาร์ม
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Environmental & Water Risk Card (Milestone 2) */}
+            <EnvironmentalCard
+              stations={stations}
+              farm={farm}
+              riskAssessment={waterRiskAssessment}
+              tideWindow={tideWindow}
+              onOpenLocationModal={() => setIsLocationModalOpen(true)}
+              onSyncVerifiedSource={handleSyncEnvironmental}
+              isSyncing={isSyncingEnvironmental}
+            />
+          </div>
+        )}
+
+        {/* TAB 4: FINANCE & ACCOUNTING */}
         {activeTab === 'FINANCE' && (
           <FinanceView
             transactions={transactions}
@@ -852,6 +910,7 @@ export const App: React.FC = () => {
         }}
         pondCount={ponds.length}
         unreadAlertsCount={alerts.filter((a) => a.status === 'UNREAD').length}
+        hasRiskWarning={waterRiskAssessment?.statusLabel === 'เฝ้าระวัง'}
       />
     </div>
   );

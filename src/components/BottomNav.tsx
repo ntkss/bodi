@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Fish, Wallet } from 'lucide-react';
+import { LayoutDashboard, Fish, Wallet, ShieldAlert } from 'lucide-react';
 import { AppTab } from './Header';
 
 interface BottomNavProps {
@@ -7,6 +7,7 @@ interface BottomNavProps {
   onTabChange: (tab: AppTab) => void;
   pondCount: number;
   unreadAlertsCount?: number;
+  hasRiskWarning?: boolean;
 }
 
 export const BottomNav: React.FC<BottomNavProps> = ({
@@ -14,6 +15,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   onTabChange,
   pondCount,
   unreadAlertsCount = 0,
+  hasRiskWarning = false,
 }) => {
   return (
     <nav
@@ -75,7 +77,32 @@ export const BottomNav: React.FC<BottomNavProps> = ({
             <span className="text-[11px] mt-1 leading-none font-medium">บ่อเลี้ยง</span>
           </button>
 
-          {/* TAB 3: บัญชีฟาร์ม */}
+          {/* TAB 3: ความเสี่ยง */}
+          <button
+            type="button"
+            onClick={() => onTabChange('RISK')}
+            className={`relative flex-1 flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-all cursor-pointer ${
+              activeTab === 'RISK'
+                ? 'text-amber-800 font-bold bg-amber-50/80 shadow-2xs'
+                : 'text-slate-500 hover:text-slate-700 active:scale-95'
+            }`}
+          >
+            <div className="relative">
+              <ShieldAlert
+                className={`w-5 h-5 transition-transform ${
+                  activeTab === 'RISK'
+                    ? 'scale-110 text-amber-700 stroke-[2.3]'
+                    : 'stroke-[1.8]'
+                }`}
+              />
+              {hasRiskWarning && (
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-500 rounded-full ring-2 ring-white animate-pulse" />
+              )}
+            </div>
+            <span className="text-[11px] mt-1 leading-none font-medium">ความเสี่ยง</span>
+          </button>
+
+          {/* TAB 4: บัญชีฟาร์ม */}
           <button
             type="button"
             onClick={() => onTabChange('FINANCE')}
