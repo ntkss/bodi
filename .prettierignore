@@ -1,0 +1,7 @@
+node_modules/
+dist/
+dist-ssr/
+.vercel/
+coverage/
+prisma/migrations/
+package-lock.json

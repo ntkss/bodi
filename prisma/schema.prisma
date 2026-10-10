@@ -1,0 +1,150 @@
+// บ่อดี (BODI) — Lean Smart Aquaculture MVP
+// Prisma Schema Definition
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User: Minimal authentication and farm ownership
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         String   @default("FARMER") // FARMER, OPERATOR, VIEWER
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  farms Farm[]
+
+  @@map("users")
+}
+
+// Farm: Represents the aquaculture facility/estate
+model Farm {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  timezone  String   @default("Asia/Bangkok")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ponds               Pond[]
+  financeTransactions FinanceTransaction[]
+
+  @@index([userId])
+  @@map("farms")
+}
+
+// Pond: Individual rearing or resting pond within a farm
+model Pond {
+  id            String   @id @default(cuid())
+  farmId        String
+  name          String
+  area          Decimal? @db.Decimal(10, 2) // In Rai or square meters
+  waterSource   String? // e.g. "น้ำคลองธรรมชาติ", "น้ำทะเลเปิด", "บ่อบาดาล"
+  species       String? // e.g. "กุ้งแชบ๊วย", "กุ้งกุลาดำ", "ปูดำ", "ปลากะพง"
+  farmingMethod String? // e.g. "ธรรมชาติ (ไม่ให้อาหาร)", "กึ่งธรรมชาติ", "พัฒนา"
+  status        String   @default("ACTIVE") // ACTIVE, RESTING, HARVESTED
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  farm                Farm                 @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  logs                PondLog[]
+  financeTransactions FinanceTransaction[]
+  alerts              Alert[]
+
+  @@index([farmId])
+  @@index([farmId, status])
+  @@map("ponds")
+}
+
+// PondLog: Quick daily record for water, exchange, animal, or harvest
+// All measurements are optional to support natural/semi-natural ponds without forced data.
+model PondLog {
+  id         String   @id @default(cuid())
+  pondId     String
+  type       String // WATER_QUALITY, WATER_EXCHANGE, ANIMAL_OBSERVATION, HARVEST, GENERAL_NOTE
+  recordedAt DateTime @default(now())
+
+  // Water Quality parameters (all optional)
+  temperature     Float? // องศาเซลเซียส (°C)
+  ph              Float? // ค่ากรด-ด่าง (pH)
+  salinity        Float? // ความเค็ม (ppt)
+  dissolvedOxygen Float? // ค่าออกซิเจนละลายน้ำ DO (mg/L)
+
+  // Water Exchange parameters (optional)
+  exchangeType   String? // "IN" (สูบเข้า), "OUT" (ปล่อยออก), "CIRCULATE" (หมุนเวียน)
+  exchangeVolume String? // e.g. "30%", "20 ซม."
+
+  // Animal Observation parameters (optional)
+  observation    String? // e.g. "กินอาหารช้า", "กุ้งเกาะขอบบ่อ", "ปกติ"
+  mortalityCount Int? // จำนวนกุ้ง/ปูที่พบผิดปกติหรือตาย (ตัว)
+
+  // Harvest parameters (optional)
+  harvestQuantity Float? // ปริมาณที่จับได้
+  harvestUnit     String? // e.g. "กก.", "ตัน", "ตัว"
+  harvestPrice    Decimal? @db.Decimal(12, 2) // ราคาขายรวม หรือราคาต่อหน่วย
+
+  // General notes and photo reference
+  notes    String?
+  photoRef String? // URL or reference identifier (not binary blob)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pond Pond @relation(fields: [pondId], references: [id], onDelete: Cascade)
+
+  @@index([pondId, recordedAt])
+  @@index([pondId, type])
+  @@map("pond_logs")
+}
+
+// FinanceTransaction: Income and Expense tracking with decimal-safe money
+model FinanceTransaction {
+  id         String   @id @default(cuid())
+  farmId     String
+  pondId     String? // Optional: can tie to a specific pond or farm-wide
+  type       String // INCOME, EXPENSE
+  category   String // e.g. "ขายกุ้ง", "ขายปู", "ค่าน้ำมันเครื่องสูบ", "ค่าแรง", "ค่าไฟฟ้า", "ค่าพันธุ์สัตว์น้ำ"
+  amount     Decimal  @db.Decimal(12, 2) // Decimal-safe money field
+  occurredAt DateTime @default(now())
+  note       String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  farm Farm  @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  pond Pond? @relation(fields: [pondId], references: [id], onDelete: SetNull)
+
+  @@index([farmId, occurredAt])
+  @@index([pondId, occurredAt])
+  @@index([farmId, type])
+  @@map("finance_transactions")
+}
+
+// Alert: In-app notices based on explicit rules
+model Alert {
+  id         String    @id @default(cuid())
+  pondId     String? // Optional: may be farm-wide or pond-specific
+  title      String // e.g. "ออกซิเจนละลายน้ำ (DO) ต่ำกว่าเกณฑ์"
+  message    String // e.g. "บ่อ 1 วัดได้ 2.8 mg/L เมื่อ 06:30 น. เสี่ยงกุ้งลอยหัว"
+  severity   String    @default("WARNING") // INFO, WARNING, CRITICAL
+  status     String    @default("UNREAD") // UNREAD, REVIEWED, RESOLVED
+  dedupeKey  String? // Prevent alert spam (e.g. "POND_1_LOW_DO_2026-10-10")
+  createdAt  DateTime  @default(now())
+  resolvedAt DateTime?
+
+  pond Pond? @relation(fields: [pondId], references: [id], onDelete: Cascade)
+
+  @@index([pondId, status])
+  @@index([status, createdAt])
+  @@index([dedupeKey])
+  @@map("alerts")
+}
