@@ -1,14 +1,21 @@
 import React from 'react';
 import { Pond } from '../types';
 import { formatRelativeTime } from '../lib/date';
-import { HelpCircle, Clock } from 'lucide-react';
+import { HelpCircle, Clock, Edit2 } from 'lucide-react';
 
 interface PondCardProps {
   pond: Pond;
   onRecordClick: (pondId: string) => void;
+  onViewDetail?: (pondId: string) => void;
+  onEditPond?: (pond: Pond) => void;
 }
 
-export const PondCard: React.FC<PondCardProps> = ({ pond, onRecordClick }) => {
+export const PondCard: React.FC<PondCardProps> = ({
+  pond,
+  onRecordClick,
+  onViewDetail,
+  onEditPond,
+}) => {
   const isResting = pond.status === 'RESTING';
   const latestLog = pond.latestLog;
   const hasWaterQuality =
@@ -22,9 +29,14 @@ export const PondCard: React.FC<PondCardProps> = ({ pond, onRecordClick }) => {
     <div className="bg-white rounded-2xl border-2 border-slate-200 shadow-sm p-4 sm:p-5 hover:border-sky-300 transition-colors">
       {/* Pond Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-3">
-        <div>
+        <div
+          className={onViewDetail ? 'cursor-pointer group' : ''}
+          onClick={() => onViewDetail && onViewDetail(pond.id)}
+        >
           <div className="flex items-center gap-2">
-            <h3 className="text-xl font-bold text-slate-900">{pond.name}</h3>
+            <h3 className="text-xl font-bold text-slate-900 group-hover:text-sky-700 transition-colors">
+              {pond.name}
+            </h3>
             {isResting ? (
               <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-300">
                 พักบ่อ / ตากบ่อ
@@ -43,13 +55,34 @@ export const PondCard: React.FC<PondCardProps> = ({ pond, onRecordClick }) => {
           </div>
         </div>
 
-        <button
-          onClick={() => onRecordClick(pond.id)}
-          type="button"
-          className="self-start sm:self-center px-3.5 py-2 bg-sky-50 hover:bg-sky-100 active:bg-sky-200 text-sky-800 font-medium text-xs sm:text-sm rounded-xl border border-sky-300 transition-colors cursor-pointer"
-        >
-          + บันทึกของบ่อนี้
-        </button>
+        <div className="flex items-center gap-1.5 self-start sm:self-center">
+          {onEditPond && (
+            <button
+              onClick={() => onEditPond(pond)}
+              type="button"
+              className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              title="แก้ไขข้อมูลบ่อ"
+            >
+              <Edit2 className="w-4 h-4" />
+            </button>
+          )}
+          {onViewDetail && (
+            <button
+              onClick={() => onViewDetail(pond.id)}
+              type="button"
+              className="px-3 py-2 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 font-medium text-xs sm:text-sm rounded-xl transition-colors cursor-pointer"
+            >
+              ประวัติบ่อ
+            </button>
+          )}
+          <button
+            onClick={() => onRecordClick(pond.id)}
+            type="button"
+            className="px-3.5 py-2 bg-sky-50 hover:bg-sky-100 active:bg-sky-200 text-sky-800 font-medium text-xs sm:text-sm rounded-xl border border-sky-300 transition-colors cursor-pointer"
+          >
+            + บันทึก
+          </button>
+        </div>
       </div>
 
       {/* Latest Status / Water Quality */}

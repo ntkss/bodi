@@ -179,11 +179,26 @@ Use Prisma migrations, decimal-safe money fields, and basic indexes for pond/dat
   - No secrets present in client code.
   - Real database setup instructions provided (fallback/blocker noted: local PostgreSQL server on localhost:5432 needs active instance or connection string to run live migration/seed).
 
-### Milestone 2 — Ponds and daily logs
+### Milestone 2 — Ponds and daily logs `[COMPLETED]`
 
-- User can create/edit a pond and add water, water-exchange, observation/mortality, harvest and general records.
-- Natural/semi-natural farming works without feed or exact stocking data.
-- Lists show timestamps and support correcting mistakes.
+- [x] **Pond Management (CRUD):**
+  - Create new pond with optional area (ไร่), water source, species, farming method, notes, and status (ACTIVE, RESTING, HARVESTED).
+  - Edit existing pond and delete pond with confirmation modal.
+  - Natural/semi-natural farming: No mandatory feed or stocking count fields.
+- [x] **Daily Logs (All 5 types):**
+  - Water quality: DO, pH, salinity, temperature (all optional; shows "ไม่ได้วัด" when absent).
+  - Water exchange: In / Out / Circulate, volume/level, notes.
+  - Animal observation: Behavior, symptoms, mortality count (optional).
+  - Harvest: Species, quantity, unit, price.
+  - General notes.
+- [x] **Log History & Correction:**
+  - View chronologically ordered log history per pond with Asia/Bangkok timestamps.
+  - Filter logs by type.
+  - Edit log to correct accidental mistakes.
+  - Delete log with confirmation dialog.
+- [x] **API Endpoints & Validation:**
+  - Serverless handlers for ponds and logs with Zod validation (`api/ponds/index.ts`, `api/ponds/[id].ts`, `api/logs/index.ts`, `api/logs/[id].ts`).
+  - Unit tests covering pond and log workflows (`tests/ponds.test.ts` passed 9/9 tests).
 
 ### Milestone 3 — Finance and dashboard
 

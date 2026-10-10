@@ -79,8 +79,14 @@ export const AlertStatusUpdateSchema = z.object({
   status: z.enum(['UNREAD', 'REVIEWED', 'RESOLVED']),
 });
 
+// Update schemas for correcting mistakes
+export const PondUpdateSchema = PondInputSchema.partial().omit({ farmId: true });
+export const PondLogUpdateSchema = PondLogInputSchema.partial().omit({ pondId: true });
+
 export type FarmInput = z.infer<typeof FarmInputSchema>;
 export type PondInput = z.infer<typeof PondInputSchema>;
+export type PondUpdate = z.infer<typeof PondUpdateSchema>;
 export type PondLogInput = z.infer<typeof PondLogInputSchema>;
+export type PondLogUpdate = z.infer<typeof PondLogUpdateSchema>;
 export type FinanceTransactionInput = z.infer<typeof FinanceTransactionInputSchema>;
 export type AlertStatusUpdate = z.infer<typeof AlertStatusUpdateSchema>;

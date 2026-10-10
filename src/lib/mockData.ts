@@ -1,4 +1,4 @@
-import { Farm, Pond, FinanceTransaction, Alert } from '../types';
+import { Farm, Pond, PondLog, FinanceTransaction, Alert } from '../types';
 
 export const initialFarm: Farm = {
   id: 'farm-1',
@@ -59,6 +59,71 @@ export const initialPonds: Pond[] = [
       recordedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
       notes: 'ตากก้นบ่อวันที่ 5 ดินแห้งแตกลายงาดี โรยปูนขาวตามขอบบ่อเรียบร้อย',
     },
+  },
+];
+
+export const initialLogs: PondLog[] = [
+  {
+    id: 'log-1',
+    pondId: 'pond-1',
+    type: 'WATER_QUALITY',
+    recordedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    temperature: 29.5,
+    ph: 7.8,
+    salinity: 18.0,
+    dissolvedOxygen: 4.8,
+    notes: 'น้ำสีเขียวมะกอกใส กุ้งกระจายตัวหากินปกติ',
+  },
+  {
+    id: 'log-2',
+    pondId: 'pond-1',
+    type: 'HARVEST',
+    recordedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    harvestQuantity: 40,
+    harvestUnit: 'กก.',
+    harvestPrice: 16000,
+    notes: 'จับกุ้งแชบ๊วยคัดไซส์ 40 ตัว/กก. ส่งแพเจ๊นา',
+  },
+  {
+    id: 'log-3',
+    pondId: 'pond-1',
+    type: 'WATER_EXCHANGE',
+    recordedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    exchangeType: 'IN',
+    exchangeVolume: 'รับน้ำเข้า 30 ซม.',
+    notes: 'เปิดท่อรับน้ำตามน้ำขึ้นรอบเช้า',
+  },
+  {
+    id: 'log-4',
+    pondId: 'pond-1',
+    type: 'ANIMAL_OBSERVATION',
+    recordedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+    observation: 'กุ้งลงก้นบ่อปกติ ไม่ลอยหัว',
+    mortalityCount: 0,
+    notes: 'เดินตรวจคันบ่อรอบเช้าตรู่',
+  },
+  {
+    id: 'log-5',
+    pondId: 'pond-2',
+    type: 'ANIMAL_OBSERVATION',
+    recordedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    observation: 'ปูดำกินเหยื่อปกติ พบตามซอกขอนไม้',
+    mortalityCount: 0,
+    notes: 'ให้ปลาเป็ดบด 15 กก.',
+  },
+  {
+    id: 'log-6',
+    pondId: 'pond-2',
+    type: 'GENERAL_NOTE',
+    recordedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    notes: 'เสริมตาข่ายกันปูหนีบคันบ่อด้านทิศใต้',
+  },
+  {
+    id: 'log-7',
+    pondId: 'pond-3',
+    type: 'GENERAL_NOTE',
+    recordedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    notes: 'ตากก้นบ่อวันที่ 5 ดินแห้งแตกลายงาดี โรยปูนขาวตามขอบบ่อเรียบร้อย',
   },
 ];
 
