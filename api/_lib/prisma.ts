@@ -5,16 +5,33 @@ declare global {
   var __prisma: PrismaClient | undefined;
 }
 
+export function getDatabaseUrl(): string | undefined {
+  return (
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_PRISMA_URL ||
+    process.env.POSTGRES_URL
+  );
+}
+
 /**
- * Returns the PrismaClient singleton or null if DATABASE_URL is not configured.
- * This prevents Lambda crash at import time when DATABASE_URL is pending setup.
+ * Returns the PrismaClient singleton or null if database URL is not configured.
+ * This prevents Lambda crash at import time when database URL is pending setup.
  */
 export function getPrisma(): PrismaClient | null {
-  if (!process.env.DATABASE_URL) {
+  const dbUrl = getDatabaseUrl();
+  if (!dbUrl) {
     return null;
+  }
+  if (!process.env.DATABASE_URL) {
+    process.env.DATABASE_URL = dbUrl;
   }
   if (!global.__prisma) {
     global.__prisma = new PrismaClient({
+      datasources: {
+        db: {
+          url: dbUrl,
+        },
+      },
       log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
     });
   }

@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import prisma from './_lib/prisma';
+import prisma, { getDatabaseUrl } from './_lib/prisma';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
@@ -10,13 +10,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let dbError: string | null = null;
 
   try {
-    // Attempt lightweight ping to PostgreSQL if DATABASE_URL is configured
-    if (process.env.DATABASE_URL) {
+    // Attempt lightweight ping to PostgreSQL if database URL is configured
+    const dbUrl = getDatabaseUrl();
+    if (dbUrl) {
       await prisma.$queryRaw`SELECT 1`;
       dbStatus = 'connected';
     } else {
       dbStatus = 'unconfigured';
-      dbError = 'ยังไม่ได้ตั้งค่า DATABASE_URL ใน Vercel Environment Variables';
+      dbError =
+        'ยังไม่ได้ตั้งค่า DATABASE_URL หรือ POSTGRES_PRISMA_URL ใน Vercel Environment Variables';
     }
   } catch (err) {
     dbStatus = 'disconnected';
