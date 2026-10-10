@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import prisma from '../_lib/prisma';
-import { PondUpdateSchema } from '../_lib/validators';
+import prisma from '../_lib/prisma.js';
+import { PondUpdateSchema } from '../_lib/validators.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { id } = req.query;

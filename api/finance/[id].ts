@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import prisma from '../_lib/prisma';
-import { FinanceTransactionUpdateSchema } from '../_lib/validators';
+import prisma from '../_lib/prisma.js';
+import { FinanceTransactionUpdateSchema } from '../_lib/validators.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { id } = req.query;
