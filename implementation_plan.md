@@ -237,9 +237,23 @@ Use Prisma migrations, decimal-safe money fields, and basic indexes for pond/dat
   - Vercel Serverless endpoints (`api/alerts/index.ts`, `api/alerts/[id].ts`).
   - Unit tests ครอบคลุมกฎทั้ง 4 ข้อ และการป้องกันการแจ้งเตือนซ้ำ (`tests/alerts.test.ts` passed 7/7 tests).
 
-### Milestone 5 — Evaluate before expanding
+### Milestone 5 — Google Authentication & Live Data Migration `[COMPLETED]`
 
-Ask actual farm users what they used, what was confusing, and what decisions the data helped with. Add weather, market data, Gemini or IoT only when there is a concrete need.
+- [x] **Google Authentication (GIS & Serverless API):**
+  - Integrated official Google Identity Services (`@google.accounts.id`).
+  - Google Sign-In endpoint (`api/auth/google.ts`) verifying Google ID tokens with Google OAuth2 API.
+  - Session verification endpoint (`api/auth/me.ts`) with HMAC-SHA256 JWT tokens.
+  - Dedicated Thai login wall (`src/components/LoginPage.tsx`) with branding and security assurance.
+  - Auto-creation of user and farm on first Google Sign-In.
+  - Header shows logged-in user profile with avatar and "ออกจากระบบ (Logout)" action.
+- [x] **Zero Mock Data & Real Database APIs:**
+  - Removed all mock state from `src/App.tsx`.
+  - Frontend directly loads real ponds, logs, transactions, and alerts from Neon PostgreSQL APIs (`/api/ponds`, `/api/logs`, `/api/finance`, `/api/alerts`).
+  - Data isolation: API routes scope data by authenticated user's farm (`farmId`).
+  - Graceful empty states in Thai for new farms with 0 ponds.
+- [x] **Production Verification:**
+  - Deployed and verified live at [https://bodi-farm.vercel.app/](https://bodi-farm.vercel.app/).
+  - All 31 unit tests pass, typecheck passes, and Prettier checks pass.
 
 ## 10. Out of Scope for V1
 
