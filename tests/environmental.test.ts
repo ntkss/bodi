@@ -113,8 +113,9 @@ describe('Environmental Data Normalization (Milestone 1)', () => {
     ).toThrow();
   });
 
-  it('provides verified candidate stations for Samut Songkhram without hallucinated endpoints', () => {
-    expect(DEFAULT_SAMUT_SONGKHRAM_STATIONS.length).toBeGreaterThanOrEqual(4);
+  it('provides only verified and candidate stations for Samut Songkhram without unusable blocked providers', () => {
+    // Only verified (Open-Meteo) and candidate (Navy Hydro) stations are kept
+    expect(DEFAULT_SAMUT_SONGKHRAM_STATIONS.length).toBe(2);
 
     const openMeteoStation = DEFAULT_SAMUT_SONGKHRAM_STATIONS.find(
       (s) => s.provider === 'OPEN_METEO'
@@ -129,15 +130,16 @@ describe('Environmental Data Normalization (Milestone 1)', () => {
     expect(navyStation?.verificationStatus).toBe('CANDIDATE');
     expect(navyStation?.providerStationId).toBe('PAK_NAM_MAE_KLONG_MK');
 
+    // Unusable / blocked providers (ThaiWater, PCD IWIS) must be excluded
     const thaiWaterStation = DEFAULT_SAMUT_SONGKHRAM_STATIONS.find(
       (s) => s.provider === 'THAI_WATER'
     );
-    expect(thaiWaterStation?.verificationStatus).toBe('BLOCKED');
+    expect(thaiWaterStation).toBeUndefined();
 
     const pcdStation = DEFAULT_SAMUT_SONGKHRAM_STATIONS.find(
       (s) => s.provider === 'PCD_IWIS'
     );
-    expect(pcdStation?.verificationStatus).toBe('BLOCKED');
+    expect(pcdStation).toBeUndefined();
   });
 });
 

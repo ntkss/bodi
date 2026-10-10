@@ -133,7 +133,7 @@ Display latest rainfall observation/forecast, relevant observed water level if a
 - [x] **Full Automated Test Coverage:** 13/13 tests in `tests/environmental.test.ts` (49/49 total project tests passing).
 - [x] **Build & Typecheck:** 0 TypeScript errors (`tsc --noEmit`), Vite production build clean.
 
-## 7. Milestone 3 — Explainable rules (later)
+## 7. Milestone 3 — Explainable rules & Alert Deduplication [COMPLETED ✅]
 
 Start with a few configurable, documented rules.
 
@@ -148,6 +148,32 @@ Alert hygiene:
 - Save rule, source observation time, generated time, severity, message, and status.
 - Avoid repeated alerts for unchanged conditions.
 - Never automatically open/close gates.
+
+### Milestone 3 Acceptance Verification
+- [x] **Configurable, Documented Alert Rules (7 Documented Rules):**
+  - **Pond Evidence (4 Rules):**
+    1. `LOW_DO`: DO $< 3.5$ mg/L (Warning), $< 2.5$ mg/L (Critical).
+    2. `PH_ANOMALY`: pH $< 7.0$ (Acidic) or $> 9.0$ (Alkaline).
+    3. `MORTALITY_SYMPTOMS`: Mortality $>0$ or distress symptoms (ลอยหัว, ตัวแดง, เหงือกดำ, ไม่กินอาหาร).
+    4. `STALE_WATER_READING`: Active pond without water reading for $>72$ hours (Anti-complacency: no readings $\neq$ safe).
+  - **Environmental Evidence (3 Rules):**
+    5. `ENV_HEAVY_RAIN`: Verified current rain $\ge 10.0$ mm/hr or 24h precipitation forecast $\ge 25.0$ mm. Explains salinity shock, acid wash runoff from pond dikes/canal, and stratification. Recommends checking salinity & pH before/after rain and avoiding opening water gate during downpour.
+    6. `ENV_HIGH_TIDE_WINDOW`: Astronomical predicted high tide window $\pm 2$ hours (Pak Nam Mae Klong). Reminds farmer to check actual canal water level and debris at the gate before opening (astronomical tide at estuary $\neq$ canal level).
+    7. `ENV_SOURCE_WATER_ANOMALY`: Alerts when a verified external station has readings outside documented thresholds.
+- [x] **Alert Hygiene & Anti-Spam Deduplication:**
+  - Daily cooldown `dedupeKey` indexing (`ENV_RAIN_${farmId}_${dateKey}`, `ENV_TIDE_${farmId}_${dateKey}`, `LOW_DO_${pondId}_${dateKey}`).
+  - Strict separation of `sourceObservationTime` from `createdAt`.
+  - Pond alerts (`pondId` set) strictly separated from farm-wide environmental alerts (`pondId: null`).
+  - Strict guard: Never generates alerts from unverified (`CANDIDATE`/`BLOCKED`) or stale (`>3h`) external stations.
+  - Strict safety guarantee: Never automates water gates opening/closing.
+- [x] **Automated Server Sync Integration:**
+  - `POST /api/environmental/sync` evaluates environmental rules and persists deduplicated alerts.
+  - `GET /api/alerts` queries both pond-specific alerts and farm-wide environmental alerts.
+- [x] **Transparent In-App Presentation (`AlertBanner`):**
+  - Shows clear badges (`สภาพแวดล้อมรอบฟาร์ม` vs pond name) and observation timestamp.
+  - Interactive rules modal grouping rules into Pond Evidence vs Environmental Evidence with threshold notes.
+- [x] **Full Automated Test Coverage:** 17/17 tests in `tests/alerts.test.ts` (59/59 total project tests passing).
+- [x] **Build & Typecheck:** 0 TypeScript errors (`tsc --noEmit`), Vite production build clean.
 
 ## 8. Minimal data model changes
 

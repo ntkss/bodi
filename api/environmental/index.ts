@@ -18,9 +18,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // GET: Fetch all reference stations and their latest readings for this farm
   if (req.method === 'GET') {
     try {
+      // Clean up blocked / unusable external providers (ThaiWater, PCD IWIS)
+      await prisma.referenceStation.deleteMany({
+        where: {
+          OR: [
+            { provider: { in: ['THAI_WATER', 'PCD_IWIS'] } },
+            { verificationStatus: 'BLOCKED' },
+          ],
+        },
+      });
+
       let stations = await prisma.referenceStation.findMany({
         where: {
           OR: [{ farmId: farmId }, { farmId: null }],
+          verificationStatus: { not: 'BLOCKED' },
+          provider: { notIn: ['THAI_WATER', 'PCD_IWIS'] },
         },
         include: {
           readings: {
@@ -54,6 +66,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         stations = await prisma.referenceStation.findMany({
           where: {
             OR: [{ farmId: farmId }, { farmId: null }],
+            verificationStatus: { not: 'BLOCKED' },
+            provider: { notIn: ['THAI_WATER', 'PCD_IWIS'] },
           },
           include: {
             readings: {

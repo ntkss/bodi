@@ -87,6 +87,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const updatedStations = await prisma.referenceStation.findMany({
       where: {
         OR: [{ farmId: farmId }, { farmId: null }],
+        verificationStatus: { not: 'BLOCKED' },
+        provider: { notIn: ['THAI_WATER', 'PCD_IWIS'] },
       },
       include: {
         readings: {
@@ -116,9 +118,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       };
     });
 
-    const { evaluateWaterRiskSummary, predictPakNamMaeKlongTide } = await import(
-      '../_lib/environmental.js'
-    );
+    const {
+      evaluateWaterRiskSummary,
+      predictPakNamMaeKlongTide,
+      evaluateEnvironmentalAlerts,
+    } = await import('../_lib/environmental.js');
 
     const riskAssessment = evaluateWaterRiskSummary({
       stations: formatted,
@@ -127,6 +131,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     const tideWindow = predictPakNamMaeKlongTide(now);
+
+    // Evaluate Environmental Alert Rules (Milestone 3: Rain & Tide Deduplication)
+    const weatherStation = formatted.find((s) => s.provider === 'OPEN_METEO');
+    const recentAlerts = await prisma.alert.findMany({
+      where: {
+        pondId: null,
+        createdAt: {
+          gte: new Date(now.getTime() - 24 * 60 * 60 * 1000),
+        },
+      },
+      select: { dedupeKey: true },
+    });
+
+    const evaluatedAlerts = evaluateEnvironmentalAlerts({
+      farmId,
+      weatherStation,
+      tideWindow,
+      referenceTime: now,
+      existingAlerts: recentAlerts,
+    });
+
+    const createdAlerts = [];
+    for (const ea of evaluatedAlerts) {
+      if (ea.dedupeKey) {
+        const existing = await prisma.alert.findFirst({
+          where: { dedupeKey: ea.dedupeKey },
+        });
+        if (!existing) {
+          const created = await prisma.alert.create({
+            data: {
+              pondId: null,
+              title: ea.title,
+              message: ea.message,
+              severity: ea.severity,
+              status: 'UNREAD',
+              dedupeKey: ea.dedupeKey,
+            },
+          });
+          createdAlerts.push(created);
+        }
+      }
+    }
 
     return res.status(200).json({
       success: true,
@@ -137,6 +183,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       stations: formatted,
       riskAssessment,
       tideWindow,
+      generatedAlerts: createdAlerts,
       fetchedAt: new Date().toISOString(),
     });
   } catch (err) {

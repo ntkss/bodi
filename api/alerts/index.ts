@@ -12,9 +12,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const whereClause: Record<string, unknown> = {};
 
       if (status) whereClause.status = String(status);
-      if (pondId) whereClause.pondId = String(pondId);
-      if (auth?.farm.id) {
-        whereClause.pond = { farmId: auth.farm.id };
+      if (pondId) {
+        whereClause.pondId = String(pondId);
+      } else if (auth?.farm.id) {
+        whereClause.OR = [
+          { pond: { farmId: auth.farm.id } },
+          { pondId: null },
+        ];
       }
 
       const alerts = await prisma.alert.findMany({

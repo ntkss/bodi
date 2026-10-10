@@ -627,7 +627,7 @@ export const App: React.FC = () => {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-slate-900">
-                      สภาวะความเสี่ยงน้ำธรรมชาติ:
+                      ความเสี่ยงน้ำ:
                     </span>
                     <span
                       className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
@@ -641,12 +641,12 @@ export const App: React.FC = () => {
                   </div>
                   <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">
                     {waterRiskAssessment?.summaryText ||
-                      'ตรวจวัดค่าน้ำและระดับน้ำจริงก่อนจัดการน้ำ'}
+                      'ตรวจน้ำจริงก่อนเปิดประตูระบายน้ำ'}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-1 text-xs font-bold text-sky-700 group-hover:translate-x-0.5 transition-transform shrink-0">
-                <span>เปิดดูเมนูความเสี่ยง</span>
+                <span>ดูความเสี่ยง</span>
                 <ArrowRight className="w-4 h-4" />
               </div>
             </div>
@@ -800,15 +800,15 @@ export const App: React.FC = () => {
             {/* Header Banner */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-2xs">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
-                  <ShieldAlert className="w-5 h-5 text-amber-700" />
+                <div className="w-10 h-10 rounded-xl bg-sky-100 text-sky-800 flex items-center justify-center shrink-0">
+                  <ShieldAlert className="w-5 h-5 text-sky-700" />
                 </div>
                 <div>
                   <h2 className="text-lg sm:text-xl font-bold text-slate-900 font-prompt">
-                    ศูนย์เฝ้าระวังความเสี่ยง (Water & Environmental Risk)
+                    เฝ้าระวังความเสี่ยงน้ำ
                   </h2>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    ประเมินสภาวะแวดล้อม ปริมาณฝน คลองส่งน้ำ และมาตราน้ำทำนายรอบฟาร์ม
+                    ฝน คลองส่งน้ำ และน้ำหนุนปากอ่าว
                   </p>
                 </div>
               </div>

@@ -72,7 +72,7 @@ export const AlertBanner: React.FC<AlertBannerProps> = ({
             className="text-sky-700 hover:text-sky-900 font-semibold flex items-center gap-1 transition-colors cursor-pointer"
           >
             <BookOpen className="w-3.5 h-3.5" />
-            <span>ดูกฎการเตือน 4 ข้อ</span>
+            <span>ดูกฎการเตือน ({DOCUMENTED_ALERT_RULES.length} ข้อ)</span>
           </button>
         </div>
       </div>
@@ -109,14 +109,29 @@ export const AlertBanner: React.FC<AlertBannerProps> = ({
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="font-bold text-base text-slate-900">{alert.title}</h3>
-                  {alert.pondName && (
+                  {alert.pondName ? (
                     <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-white border border-slate-300">
                       {alert.pondName}
+                    </span>
+                  ) : (
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-sky-100 text-sky-800 border border-sky-300">
+                      สภาพแวดล้อมรอบฟาร์ม
                     </span>
                   )}
                   <span className="text-xs text-slate-500">
                     {formatRelativeTime(alert.createdAt)}
                   </span>
+                  {alert.sourceObservationTime && (
+                    <span className="text-[11px] text-slate-600 bg-white/80 px-2 py-0.5 rounded-md border border-slate-200">
+                      ตรวจวัด:{' '}
+                      {new Date(alert.sourceObservationTime).toLocaleTimeString('th-TH', {
+                        timeZone: 'Asia/Bangkok',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}{' '}
+                      น.
+                    </span>
+                  )}
                   {isReviewed && (
                     <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-sky-100 text-sky-800 border border-sky-200">
                       รับทราบแล้ว
@@ -200,38 +215,98 @@ export const AlertBanner: React.FC<AlertBannerProps> = ({
             </div>
 
             <p className="text-xs sm:text-sm text-slate-600 mb-4 leading-relaxed">
-              ระบบใช้กฎเกณฑ์ตรงไปตรงมา 4 ข้อในการเฝ้าระวังสภาพบ่อ
-              เพื่อแจ้งเตือนในแอปทันทีเมื่อพบความเสี่ยง
-              โดยมีระบบป้องกันการแจ้งเตือนซ้ำซ้อนในวันเดียวกัน:
+              ระบบใช้กฎเกณฑ์ตรงไปตรงมา {DOCUMENTED_ALERT_RULES.length} ข้อ
+              โดยแบ่งออกเป็น <strong>กฎระดับบ่อเลี้ยง (Pond Evidence)</strong> และ{' '}
+              <strong>กฎสภาพแวดล้อมรอบฟาร์ม (Environmental Evidence)</strong>{' '}
+              พร้อมระบบตัดการเตือนซ้ำ (Deduplication) รายวัน:
             </p>
 
-            <div className="space-y-3">
-              {DOCUMENTED_ALERT_RULES.map((rule, idx) => (
-                <div
-                  key={rule.code}
-                  className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm text-slate-900">
-                      กฎที่ {idx + 1}: {rule.name}
-                    </span>
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                        rule.defaultSeverity === 'CRITICAL'
-                          ? 'bg-rose-100 text-rose-800'
-                          : rule.defaultSeverity === 'WARNING'
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-blue-100 text-blue-800'
-                      }`}
+            <div className="space-y-4">
+              {/* Category 1: Pond Evidence */}
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-700 mb-2 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-indigo-600"></span>
+                  1. กฎระดับบ่อเลี้ยง (Pond Evidence)
+                </h4>
+                <div className="space-y-2.5">
+                  {DOCUMENTED_ALERT_RULES.filter((r) => r.category === 'POND').map((rule, idx) => (
+                    <div
+                      key={rule.code}
+                      className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1"
                     >
-                      {rule.defaultSeverity}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    {rule.description}
-                  </p>
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-sm text-slate-900">
+                          {idx + 1}. {rule.name}
+                        </span>
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                            rule.defaultSeverity === 'CRITICAL'
+                              ? 'bg-rose-100 text-rose-800'
+                              : rule.defaultSeverity === 'WARNING'
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-blue-100 text-blue-800'
+                          }`}
+                        >
+                          {rule.defaultSeverity}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        {rule.description}
+                      </p>
+                      {rule.thresholdNotes && (
+                        <p className="text-[11px] text-slate-500 bg-white p-2 rounded-lg border border-slate-200">
+                          <strong>เกณฑ์อ้างอิง:</strong> {rule.thresholdNotes}
+                        </p>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
+
+              {/* Category 2: Environmental Evidence */}
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-sky-700 mb-2 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-sky-600"></span>
+                  2. กฎระดับสภาพแวดล้อมรอบฟาร์ม (Environmental Evidence)
+                </h4>
+                <div className="space-y-2.5">
+                  {DOCUMENTED_ALERT_RULES.filter((r) => r.category === 'ENVIRONMENTAL').map((rule, idx) => (
+                    <div
+                      key={rule.code}
+                      className="p-3.5 rounded-xl bg-sky-50/50 border border-sky-100 space-y-1"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-sm text-slate-900">
+                          {idx + 1}. {rule.name}
+                        </span>
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                            rule.defaultSeverity === 'CRITICAL'
+                              ? 'bg-rose-100 text-rose-800'
+                              : rule.defaultSeverity === 'WARNING'
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-blue-100 text-blue-800'
+                          }`}
+                        >
+                          {rule.defaultSeverity}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        {rule.description}
+                      </p>
+                      {rule.thresholdNotes && (
+                        <p className="text-[11px] text-slate-500 bg-white p-2 rounded-lg border border-sky-200">
+                          <strong>เกณฑ์อ้างอิง:</strong> {rule.thresholdNotes}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-900 leading-relaxed">
+              <strong>ข้อพึงระวังด้านความปลอดภัย:</strong> ระบบแจ้งเตือนเพื่อเตือนให้เกษตรกรเดินตรวจสภาพน้ำจริงที่หน้าบานประตูระบายน้ำเท่านั้น ระบบจะไม่มีคำสั่งเปิด-ปิดประตูน้ำอัตโนมัติอย่างเด็ดขาด
             </div>
 
             <div className="mt-5 pt-3 border-t border-slate-200 flex justify-end">

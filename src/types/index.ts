@@ -151,5 +151,8 @@ export interface Alert {
   message: string;
   severity: AlertSeverity;
   status: AlertStatus;
+  dedupeKey?: string | null;
+  ruleCode?: string | null;
+  sourceObservationTime?: string | null;
   createdAt: string;
 }

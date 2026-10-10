@@ -481,30 +481,197 @@ export const DEFAULT_SAMUT_SONGKHRAM_STATIONS = [
       'มาตราน้ำทำนายรายปีทางดาราศาสตร์บริเวณปากอ่าวแม่กลอง สำหรับวางแผนจังหวะเปิด-ปิดประตูระบายน้ำ (ข้อควรระวัง: เป็นระดับน้ำทำนาย ไม่ใช่ระดับน้ำตรวจวัดจริงในคลองซอย)',
     verificationStatus: 'CANDIDATE',
   },
-  {
-    provider: 'THAI_WATER',
-    providerStationId: 'HII_MAE_KLONG',
-    name: 'สถาบันสารสนเทศทรัพยากรน้ำ (สสน. / ThaiWater)',
-    sourceUrl: 'https://standard.thaiwater.net',
-    latitude: 13.41,
-    longitude: 99.99,
-    parameters: 'rainfall,water_level,runoff',
-    units: 'mm, m (MSL)',
-    relevanceNotes:
-      'มาตรฐานการแลกเปลี่ยนข้อมูลน้ำภาครัฐ ไม่มี Public REST API สาธารณะสำหรับแอปพลิเคชันบุคคลที่สามโดยไม่มีข้อตกลงร่วม (MoU) สถานะปัจจุบันถูกระงับการเชื่อมต่อตรง',
-    verificationStatus: 'BLOCKED',
-  },
-  {
-    provider: 'PCD_IWIS',
-    providerStationId: 'PCD_IWIS_MAE_KLONG',
-    name: 'กรมควบคุมมลพิษ IWIS (แม่น้ำแม่กลองตอนล่าง)',
-    sourceUrl: 'https://iwis.pcd.go.th',
-    latitude: 13.38,
-    longitude: 99.99,
-    parameters: 'dissolved_oxygen,salinity,ph',
-    units: 'mg/L, ppt',
-    relevanceNotes:
-      'ระบบติดตามคุณภาพน้ำผิวดิน ให้บริการเฉพาะหน้าเว็บแดชบอร์ด ไม่มี Documented Open API สาธารณะที่ใช้งานได้สำหรับแอปทั่วไป',
-    verificationStatus: 'BLOCKED',
-  },
 ];
+
+/**
+ * Bangkok Date key helper (YYYY-MM-DD)
+ */
+export function getBangkokDateKey(dateInput?: string | Date): string {
+  const date = dateInput ? new Date(dateInput) : new Date();
+  return date.toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+}
+
+/**
+ * Helper to parse time string like "11:45 น." into minutes from midnight (0..1439)
+ */
+export function parseTimeToMinutes(timeStr: string): number | null {
+  const clean = timeStr.replace('น.', '').trim();
+  const parts = clean.split(':');
+  if (parts.length >= 2) {
+    const h = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10);
+    if (!isNaN(h) && !isNaN(m)) {
+      return h * 60 + m;
+    }
+  }
+  return null;
+}
+
+export interface EvaluatedAlertItem {
+  pondId: string | null;
+  title: string;
+  message: string;
+  severity: 'INFO' | 'WARNING' | 'CRITICAL';
+  status: 'UNREAD' | 'REVIEWED' | 'RESOLVED';
+  dedupeKey: string;
+  ruleCode: string;
+  sourceObservationTime: string;
+  createdAt: string;
+}
+
+export interface EnvironmentalAlertInput {
+  farmId: string;
+  referenceTime?: Date | string;
+  weatherStation?: {
+    verificationStatus: string;
+    provider?: string;
+    name?: string;
+    freshness?: string;
+    readings?: {
+      parameter: string;
+      value: number;
+      unit?: string;
+      observedAt: Date | string;
+      status?: string;
+    }[];
+    latestReading?: {
+      parameter: string;
+      value: number;
+      unit?: string;
+      observedAt: Date | string;
+      status?: string;
+    } | null;
+  } | null;
+  tideWindow?: TideWindowInfo | null;
+  existingAlerts?: { dedupeKey?: string | null }[];
+  thresholds?: {
+    currentRainMm?: number;
+    forecastRain24hMm?: number;
+    tideWindowMinutes?: number;
+  };
+}
+
+/**
+ * Pure function to evaluate environmental alert rules (Rainfall & Tide Window).
+ * Kept strictly distinct from pond-level logs (farm-wide alerts with pondId = null).
+ * Ensures no alert is generated from unverified or stale data.
+ */
+export function evaluateEnvironmentalAlerts(input: EnvironmentalAlertInput): EvaluatedAlertItem[] {
+  const { farmId, weatherStation, tideWindow, existingAlerts = [], thresholds } = input;
+  const newAlerts: EvaluatedAlertItem[] = [];
+  const existingKeys = new Set(
+    existingAlerts.map((a) => a.dedupeKey).filter(Boolean)
+  );
+
+  const refDate = input.referenceTime ? new Date(input.referenceTime) : new Date();
+  const todayKey = getBangkokDateKey(refDate);
+
+  // Configurable thresholds
+  const currentRainThreshold = thresholds?.currentRainMm ?? 10.0;
+  const forecastRainThreshold = thresholds?.forecastRain24hMm ?? 25.0;
+  const tideWindowMinutes = thresholds?.tideWindowMinutes ?? 120; // 2 hours
+
+  // 1. Environmental Rule: HEAVY_RAIN
+  // Must only alert when station is VERIFIED and FRESH (< 3 hours)
+  if (
+    weatherStation &&
+    weatherStation.verificationStatus === 'VERIFIED' &&
+    weatherStation.freshness !== 'STALE'
+  ) {
+    const readings =
+      weatherStation.readings && weatherStation.readings.length > 0
+        ? weatherStation.readings
+        : weatherStation.latestReading
+          ? [weatherStation.latestReading]
+          : [];
+
+    const rainReading = readings.find(
+      (r) => r.parameter === 'precipitation' || r.parameter === 'rain'
+    );
+    const forecastReading = readings.find(
+      (r) => r.parameter === 'precipitation_forecast_24h'
+    );
+
+    const currentRain = rainReading ? rainReading.value : 0;
+    const forecastRain = forecastReading ? forecastReading.value : 0;
+
+    if (currentRain >= currentRainThreshold || forecastRain >= forecastRainThreshold) {
+      const dedupeKey = `ENV_RAIN_${farmId}_${todayKey}`;
+
+      if (!existingKeys.has(dedupeKey)) {
+        const observationTime =
+          (rainReading || forecastReading)?.observedAt || refDate.toISOString();
+        const obsTimeStr = new Date(observationTime).toLocaleTimeString('th-TH', {
+          timeZone: 'Asia/Bangkok',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+
+        const alert: EvaluatedAlertItem = {
+          pondId: null,
+          title:
+            currentRain >= currentRainThreshold
+              ? `เฝ้าระวังฝนตกหนัก (${currentRain} มม./ชม.)`
+              : `เฝ้าระวังพยากรณ์ฝนสะสมสูง (${forecastRain} มม. ใน 24 ชม.)`,
+          message: `ตรวจพบฝน ${currentRain} มม. (คาดการณ์ 24 ชม. ข้างหน้า: ${forecastRain} มม.) ข้อมูลตรวจวัดเวลา ${obsTimeStr} น. เสี่ยงน้ำในบ่อแบ่งชั้น (Stratification), ความเค็มฮวบ และกรดชะล้างจากคันบ่อ แนะนำตรวจวัดความเค็ม/pH ก่อนและหลังฝนตก และหลีกเลี่ยงการเปิดประตูระบายน้ำรับน้ำขณะฝนตกหนัก`,
+          severity: 'WARNING',
+          status: 'UNREAD',
+          dedupeKey,
+          ruleCode: 'ENV_HEAVY_RAIN',
+          sourceObservationTime: new Date(observationTime).toISOString(),
+          createdAt: new Date().toISOString(),
+        };
+
+        newAlerts.push(alert);
+        existingKeys.add(dedupeKey);
+      }
+    }
+  }
+
+  // 2. Environmental Rule: HIGH_TIDE_WINDOW
+  // Reminds farmer to check actual canal water level around peak tide window
+  if (tideWindow?.nextHighTide?.time) {
+    const peakMinutes = parseTimeToMinutes(tideWindow.nextHighTide.time);
+
+    if (peakMinutes != null) {
+      const bkkParts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Bangkok',
+        hour: 'numeric',
+        minute: 'numeric',
+        hour12: false,
+      }).formatToParts(refDate);
+
+      const hourPart = bkkParts.find((p) => p.type === 'hour');
+      const minutePart = bkkParts.find((p) => p.type === 'minute');
+      const currentBkkMinutes =
+        (hourPart ? parseInt(hourPart.value, 10) : 0) * 60 +
+        (minutePart ? parseInt(minutePart.value, 10) : 0);
+
+      const diffMinutes = Math.abs(currentBkkMinutes - peakMinutes);
+
+      if (diffMinutes <= tideWindowMinutes) {
+        const dateKey = tideWindow.dateStr || todayKey;
+        const dedupeKey = `ENV_TIDE_${farmId}_${dateKey}`;
+
+        if (!existingKeys.has(dedupeKey)) {
+          const alert: EvaluatedAlertItem = {
+            pondId: null,
+            title: `ช่วงหน้าต่างน้ำหนุนสูงสุด (ทำนายอุทกศาสตร์: ${tideWindow.nextHighTide.time})`,
+            message: `ช่วงเวลานี้อยู่ในหน้าต่างน้ำหนุนสูงสุดตามตารางทำนายดาราศาสตร์ ปากน้ำแม่กลอง (~${tideWindow.nextHighTide.levelMeters} ม.) เตือนเกษตรกรให้ "เดินตรวจระดับน้ำจริงและสิ่งปนเปื้อนที่หน้าบานประตูระบายน้ำคลองส่งน้ำ" ก่อนตัดสินใจเปิดรับน้ำ (ระดับน้ำทำนายดาราศาสตร์ไม่ใช่ระดับน้ำจริงในคลองส่งน้ำ ห้ามตั้งระบบเปิดน้ำอัตโนมัติ)`,
+            severity: 'INFO',
+            status: 'UNREAD',
+            dedupeKey,
+            ruleCode: 'ENV_HIGH_TIDE_WINDOW',
+            sourceObservationTime: refDate.toISOString(),
+            createdAt: new Date().toISOString(),
+          };
+
+          newAlerts.push(alert);
+          existingKeys.add(dedupeKey);
+        }
+      }
+    }
+  }
+
+  return newAlerts;
+}
