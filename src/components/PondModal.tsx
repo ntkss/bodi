@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Trash2, Check } from 'lucide-react';
+import { X, Trash2, Check, MapPin, Loader2 } from 'lucide-react';
 import { Pond, PondStatus } from '../types';
+import { getCurrentCoordinates } from '../lib/location';
 
 interface PondModalProps {
   isOpen: boolean;
@@ -33,6 +34,25 @@ export const PondModal: React.FC<PondModalProps> = ({
   const [farmingMethod, setFarmingMethod] = useState('');
   const [status, setStatus] = useState<PondStatus>('ACTIVE');
   const [notes, setNotes] = useState('');
+  const [isLocating, setIsLocating] = useState(false);
+  const [locationSuccess, setLocationSuccess] = useState<string | null>(null);
+
+  const handleCaptureLocation = async () => {
+    setIsLocating(true);
+    setLocationSuccess(null);
+    try {
+      const coords = await getCurrentCoordinates();
+      const locStr = `📍 พิกัด GPS: ${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)} (±${Math.round(coords.accuracy)}ม.)`;
+      setNotes((prev) => (prev ? `${prev}\n${locStr}` : locStr));
+      setLocationSuccess(
+        `บันทึกพิกัดสำเร็จ (${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)})`
+      );
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'ไม่สามารถดึงตำแหน่งได้');
+    } finally {
+      setIsLocating(false);
+    }
+  };
 
   useEffect(() => {
     if (pondToEdit) {
@@ -207,11 +227,31 @@ export const PondModal: React.FC<PondModalProps> = ({
             </div>
           </div>
 
-          {/* Notes */}
+          {/* Notes & Location */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
-              หมายเหตุบ่อ
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-slate-700">
+                หมายเหตุ & พิกัดบ่อ
+              </label>
+              <button
+                type="button"
+                onClick={handleCaptureLocation}
+                disabled={isLocating}
+                className="inline-flex items-center gap-1 text-[11px] font-bold text-sky-700 hover:text-sky-800 bg-sky-50 hover:bg-sky-100 px-2.5 py-1 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {isLocating ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <MapPin className="w-3.5 h-3.5 text-sky-600" />
+                )}
+                <span>{isLocating ? 'กำลังหาพิกัด...' : '📍 ดึงพิกัด GPS'}</span>
+              </button>
+            </div>
+            {locationSuccess && (
+              <p className="text-[11px] text-emerald-700 font-medium mb-1">
+                ✓ {locationSuccess}
+              </p>
+            )}
             <textarea
               rows={2}
               placeholder="เช่น มีแนวต้นโกงกางบังลม, ประตูน้ำอยู่ทิศตะวันออก"

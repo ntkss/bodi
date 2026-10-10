@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Header, AppTab } from './components/Header';
+import { BottomNav } from './components/BottomNav';
 import { AlertBanner } from './components/AlertBanner';
 import { QuickActions } from './components/QuickActions';
 import { FinanceSummaryCard } from './components/FinanceSummaryCard';
@@ -14,6 +15,11 @@ import { ConfirmDialog } from './components/ConfirmDialog';
 import { LoginPage } from './components/LoginPage';
 import { useAuth } from './context/AuthContext';
 import { calculateFinanceSummary } from './lib/finance';
+import {
+  registerBodiServiceWorker,
+  requestPushPermission,
+  getNotificationPermission,
+} from './lib/pushNotifications';
 import { Pond, PondLog, PondStatus, LogType, FinanceTransaction, Alert } from './types';
 import { Fish, Plus, Check, Loader2, Sparkles } from 'lucide-react';
 
@@ -27,6 +33,7 @@ export const App: React.FC = () => {
   const [transactions, setTransactions] = useState<FinanceTransaction[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [isLoadingData, setIsLoadingData] = useState<boolean>(true);
+  const [isPushEnabled, setIsPushEnabled] = useState<boolean>(false);
 
   // Selected Pond for detail view
   const [selectedPondDetailId, setSelectedPondDetailId] = useState<string | null>(null);
@@ -102,6 +109,28 @@ export const App: React.FC = () => {
       setIsLoadingData(false);
     }
   }, [user, authFetch]);
+
+  // Register PWA Service Worker & detect push permission
+  useEffect(() => {
+    registerBodiServiceWorker();
+    if (getNotificationPermission() === 'granted') {
+      setIsPushEnabled(true);
+    }
+  }, []);
+
+  const handleTogglePush = async () => {
+    if (isPushEnabled) {
+      showToast('เปิดการแจ้งเตือนสภาวะฟาร์มไว้อยู่แล้ว');
+      return;
+    }
+    const granted = await requestPushPermission();
+    if (granted) {
+      setIsPushEnabled(true);
+      showToast('เปิดรับการแจ้งเตือนสภาวะฟาร์มเรียบร้อย');
+    } else {
+      showToast('ไม่ได้รับอนุญาตแจ้งเตือน กรุณาเปิดในการตั้งค่าเบราว์เซอร์');
+    }
+  };
 
   useEffect(() => {
     if (user) {
@@ -443,10 +472,12 @@ export const App: React.FC = () => {
           avatarUrl: user.avatarUrl,
         }}
         onLogout={logout}
+        isPushEnabled={isPushEnabled}
+        onTogglePush={handleTogglePush}
       />
 
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-5 sm:py-6">
+      {/* Main Content Area (With safe space for mobile bottom nav) */}
+      <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-5 sm:py-6 pb-28 sm:pb-10">
         {/* Toast Notification */}
         {notification && (
           <div className="fixed bottom-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-lg border border-slate-700 flex items-center gap-2 animate-bounce">
@@ -688,6 +719,17 @@ export const App: React.FC = () => {
           </p>
         </div>
       </footer>
+
+      {/* Mobile Glass Bottom Navigation */}
+      <BottomNav
+        activeTab={activeTab}
+        onTabChange={(tab) => {
+          setActiveTab(tab);
+          if (tab !== 'PONDS') setSelectedPondDetailId(null);
+        }}
+        pondCount={ponds.length}
+        unreadAlertsCount={alerts.filter((a) => a.status === 'UNREAD').length}
+      />
     </div>
   );
 };
