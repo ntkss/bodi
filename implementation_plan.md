@@ -200,11 +200,25 @@ Use Prisma migrations, decimal-safe money fields, and basic indexes for pond/dat
   - Serverless handlers for ponds and logs with Zod validation (`api/ponds/index.ts`, `api/ponds/[id].ts`, `api/logs/index.ts`, `api/logs/[id].ts`).
   - Unit tests covering pond and log workflows (`tests/ponds.test.ts` passed 9/9 tests).
 
-### Milestone 3 — Finance and dashboard
+### Milestone 3 — Finance and dashboard `[COMPLETED]`
 
-- Income/expense CRUD and monthly totals work.
-- Dashboard shows latest pond records and missing/stale data correctly.
-- Layout is usable on a phone.
+- [x] **Finance CRUD & Calculations:**
+  - Income and expense CRUD with date, category, decimal-safe amount, optional pond, and notes.
+  - Monthly totals (total income, total expense, net estimated balance).
+  - Filtering by month / category / pond.
+  - Ability to edit mistakes or delete transactions with confirmation.
+  - CSV export for simple farm records with UTF-8 BOM support.
+- [x] **Home Dashboard:**
+  - Focused dashboard with ONLY the 5 essential elements:
+    1. Attention alerts that need action.
+    2. Latest water reading per pond with timestamp (or "ไม่มีข้อมูลล่าสุด" when missing/stale).
+    3. Recent mortality and animal observations.
+    4. Monthly finance summary (income, expenses, net amount).
+    5. Large quick-action buttons.
+  - Mobile-first layout, touch-friendly tab navigation (หน้าหลัก / บ่อเลี้ยง / บัญชีฟาร์ม).
+- [x] **API Endpoints & Validation:**
+  - Vercel Serverless endpoints (`api/finance/index.ts`, `api/finance/[id].ts`).
+  - Unit tests for finance CRUD, date filtering, and CSV export (`tests/finance_crud.test.ts` passed 5/5 tests).
 
 ### Milestone 4 — Basic alerts
 

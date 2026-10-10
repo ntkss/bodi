@@ -1,17 +1,21 @@
 import React from 'react';
-import { Waves, Calendar } from 'lucide-react';
+import { Waves, Calendar, LayoutDashboard, Fish, Wallet } from 'lucide-react';
 import { formatThaiDate } from '../lib/date';
+
+export type AppTab = 'DASHBOARD' | 'PONDS' | 'FINANCE';
 
 interface HeaderProps {
   farmName: string;
+  activeTab: AppTab;
+  onTabChange: (tab: AppTab) => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ farmName }) => {
+export const Header: React.FC<HeaderProps> = ({ farmName, activeTab, onTabChange }) => {
   const todayStr = formatThaiDate(new Date());
 
   return (
     <header className="bg-sky-700 text-white shadow-md sticky top-0 z-30">
-      <div className="max-w-4xl mx-auto px-4 py-3 sm:py-4">
+      <div className="max-w-4xl mx-auto px-4 pt-3 sm:pt-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           {/* Brand Info */}
           <div className="flex items-center gap-3">
@@ -46,6 +50,48 @@ export const Header: React.FC<HeaderProps> = ({ farmName }) => {
             </div>
           </div>
         </div>
+
+        {/* Mobile-Friendly Main Navigation Tabs */}
+        <nav className="flex items-center gap-2 mt-3 -mx-4 px-4 overflow-x-auto border-t border-sky-600/70 pt-2 pb-2 scrollbar-none">
+          <button
+            type="button"
+            onClick={() => onTabChange('DASHBOARD')}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'DASHBOARD'
+                ? 'bg-white text-sky-800 shadow-xs'
+                : 'text-sky-100 hover:text-white hover:bg-sky-600/50'
+            }`}
+          >
+            <LayoutDashboard className="w-4 h-4" />
+            <span>หน้าหลัก</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onTabChange('PONDS')}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'PONDS'
+                ? 'bg-white text-sky-800 shadow-xs'
+                : 'text-sky-100 hover:text-white hover:bg-sky-600/50'
+            }`}
+          >
+            <Fish className="w-4 h-4" />
+            <span>บ่อเลี้ยง</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onTabChange('FINANCE')}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'FINANCE'
+                ? 'bg-white text-emerald-800 shadow-xs'
+                : 'text-sky-100 hover:text-white hover:bg-sky-600/50'
+            }`}
+          >
+            <Wallet className="w-4 h-4" />
+            <span>บัญชีฟาร์ม</span>
+          </button>
+        </nav>
       </div>
     </header>
   );

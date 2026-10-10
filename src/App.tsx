@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
-import { Header } from './components/Header';
+import { Header, AppTab } from './components/Header';
 import { AlertBanner } from './components/AlertBanner';
 import { SystemFoundationCard } from './components/SystemFoundationCard';
 import { QuickActions } from './components/QuickActions';
 import { FinanceSummaryCard } from './components/FinanceSummaryCard';
+import { RecentObservationsCard } from './components/RecentObservationsCard';
+import { FinanceView } from './components/FinanceView';
+import { FinanceModal } from './components/FinanceModal';
 import { PondCard } from './components/PondCard';
 import { PondModal } from './components/PondModal';
 import { DailyLogModal } from './components/DailyLogModal';
 import { PondDetailView } from './components/PondDetailView';
 import { ConfirmDialog } from './components/ConfirmDialog';
-import { QuickRecordModal } from './components/QuickRecordModal';
 import {
   initialFarm,
   initialPonds,
@@ -23,29 +25,37 @@ import { Fish, Plus, Check } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [farm] = useState(initialFarm);
+  const [activeTab, setActiveTab] = useState<AppTab>('DASHBOARD');
+
+  // Domain state
   const [ponds, setPonds] = useState<Pond[]>(initialPonds);
   const [logs, setLogs] = useState<PondLog[]>(initialLogs);
   const [transactions, setTransactions] =
     useState<FinanceTransaction[]>(initialTransactions);
   const [alerts, setAlerts] = useState<Alert[]>(initialAlerts);
 
-  // View state
+  // Selected Pond for detail view
   const [selectedPondDetailId, setSelectedPondDetailId] = useState<string | null>(null);
 
-  // Modals state
+  // Pond modal
   const [isPondModalOpen, setIsPondModalOpen] = useState(false);
   const [pondToEdit, setPondToEdit] = useState<Pond | null>(null);
 
+  // Daily log modal
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   const [logToEdit, setLogToEdit] = useState<PondLog | null>(null);
   const [logModalPondId, setLogModalPondId] = useState<string>('');
   const [logModalInitialType, setLogModalInitialType] =
     useState<LogType>('WATER_QUALITY');
 
-  // Quick action modal
-  const [activeQuickAction, setActiveQuickAction] = useState<string | null>(null);
+  // Finance modal
+  const [isFinanceModalOpen, setIsFinanceModalOpen] = useState(false);
+  const [financeToEdit, setFinanceToEdit] = useState<FinanceTransaction | null>(null);
+  const [financeInitialType, setFinanceInitialType] = useState<'INCOME' | 'EXPENSE'>(
+    'INCOME'
+  );
 
-  // Confirm dialog state
+  // Confirm dialog
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
     title: string;
@@ -65,7 +75,7 @@ export const App: React.FC = () => {
     setTimeout(() => setNotification(null), 3500);
   };
 
-  // Alert handler
+  // Dismiss alert
   const handleDismissAlert = (id: string) => {
     setAlerts((prev) =>
       prev.map((a) => (a.id === id ? { ...a, status: 'REVIEWED' as const } : a))
@@ -73,7 +83,7 @@ export const App: React.FC = () => {
     showToast('รับทราบการแจ้งเตือนเรียบร้อยแล้ว');
   };
 
-  // Helper to recompute latestLog for a pond from logs state
+  // Helper to get latest log for pond
   const getLatestLogForPond = (pondId: string, currentLogs: PondLog[]) => {
     const pondLogsSorted = currentLogs
       .filter((l) => l.pondId === pondId)
@@ -83,7 +93,7 @@ export const App: React.FC = () => {
     return pondLogsSorted[0] || undefined;
   };
 
-  // --- Pond CRUD handlers ---
+  // --- Pond CRUD ---
   const handleOpenCreatePond = () => {
     setPondToEdit(null);
     setIsPondModalOpen(true);
@@ -105,7 +115,6 @@ export const App: React.FC = () => {
     notes?: string;
   }) => {
     if (pondData.id) {
-      // Edit existing pond
       setPonds((prev) =>
         prev.map((p) =>
           p.id === pondData.id
@@ -124,10 +133,8 @@ export const App: React.FC = () => {
       );
       showToast(`แก้ไขข้อมูล "${pondData.name}" เรียบร้อยแล้ว`);
     } else {
-      // Create new pond
-      const newPondId = `pond-${Date.now()}`;
       const newPond: Pond = {
-        id: newPondId,
+        id: `pond-${Date.now()}`,
         farmId: farm.id,
         name: pondData.name,
         area: pondData.area,
@@ -163,7 +170,7 @@ export const App: React.FC = () => {
     });
   };
 
-  // --- Daily Log Handlers ---
+  // --- Daily Log CRUD ---
   const handleOpenAddLog = (pondId?: string, initialType: LogType = 'WATER_QUALITY') => {
     setLogToEdit(null);
     setLogModalPondId(pondId || ponds[0]?.id || '');
@@ -199,7 +206,6 @@ export const App: React.FC = () => {
     let updatedLogs: PondLog[];
 
     if (logData.id) {
-      // Edit existing log (correct mistake)
       updatedLogs = logs.map((l) =>
         l.id === logData.id
           ? {
@@ -223,7 +229,6 @@ export const App: React.FC = () => {
       );
       showToast('แก้ไขบันทึกข้อผิดพลาดเรียบร้อยแล้ว');
     } else {
-      // Add new log
       const newLog: PondLog = {
         id: `log-${Date.now()}`,
         pondId: logData.pondId,
@@ -248,7 +253,7 @@ export const App: React.FC = () => {
 
     setLogs(updatedLogs);
 
-    // Update the latestLog reference on the corresponding pond
+    // Sync latestLog on pond
     setPonds((prev) =>
       prev.map((p) => {
         if (p.id === logData.pondId) {
@@ -292,7 +297,82 @@ export const App: React.FC = () => {
     });
   };
 
-  // Quick action from dashboard
+  // --- Finance CRUD ---
+  const handleOpenAddFinance = (type: 'INCOME' | 'EXPENSE' = 'INCOME') => {
+    setFinanceToEdit(null);
+    setFinanceInitialType(type);
+    setIsFinanceModalOpen(true);
+  };
+
+  const handleOpenEditFinance = (tx: FinanceTransaction) => {
+    setFinanceToEdit(tx);
+    setFinanceInitialType(tx.type);
+    setIsFinanceModalOpen(true);
+  };
+
+  const handleSaveFinance = (data: {
+    id?: string;
+    type: 'INCOME' | 'EXPENSE';
+    category: string;
+    amount: number;
+    occurredAt?: string;
+    pondId?: string;
+    note?: string;
+  }) => {
+    const targetPond = ponds.find((p) => p.id === data.pondId);
+
+    if (data.id) {
+      setTransactions((prev) =>
+        prev.map((t) =>
+          t.id === data.id
+            ? {
+                ...t,
+                type: data.type,
+                category: data.category,
+                amount: data.amount,
+                occurredAt: data.occurredAt || t.occurredAt,
+                pondId: data.pondId,
+                pondName: targetPond ? targetPond.name.split(' ')[0] : undefined,
+                note: data.note,
+              }
+            : t
+        )
+      );
+      showToast('แก้ไขรายการการเงินเรียบร้อยแล้ว');
+    } else {
+      const newTx: FinanceTransaction = {
+        id: `tx-${Date.now()}`,
+        farmId: farm.id,
+        pondId: data.pondId,
+        pondName: targetPond ? targetPond.name.split(' ')[0] : undefined,
+        type: data.type,
+        category: data.category,
+        amount: data.amount,
+        occurredAt: data.occurredAt || new Date().toISOString(),
+        note: data.note,
+      };
+      setTransactions((prev) => [newTx, ...prev]);
+      showToast(
+        `บันทึก${data.type === 'INCOME' ? 'รายรับ' : 'รายจ่าย'} ${data.amount.toLocaleString('th-TH')} บาท เรียบร้อยแล้ว`
+      );
+    }
+    setIsFinanceModalOpen(false);
+  };
+
+  const handleDeleteFinance = (txId: string) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'ยืนยันการลบรายการการเงิน',
+      message: 'คุณแน่ใจหรือไม่ว่าต้องการลบรายการนี้?',
+      onConfirm: () => {
+        setTransactions((prev) => prev.filter((t) => t.id !== txId));
+        setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
+        showToast('ลบรายการการเงินเรียบร้อยแล้ว');
+      },
+    });
+  };
+
+  // Quick Action routing from Home Dashboard
   const handleQuickActionClick = (action: string) => {
     if (action === 'water') {
       handleOpenAddLog(undefined, 'WATER_QUALITY');
@@ -301,42 +381,24 @@ export const App: React.FC = () => {
     } else if (action === 'exchange') {
       handleOpenAddLog(undefined, 'WATER_EXCHANGE');
     } else if (action === 'finance') {
-      setActiveQuickAction('finance');
+      handleOpenAddFinance('INCOME');
     }
-  };
-
-  const handleSaveFinance = (data: {
-    type: 'INCOME' | 'EXPENSE';
-    category: string;
-    amount: number;
-    pondId?: string;
-    note?: string;
-  }) => {
-    const targetPond = ponds.find((p) => p.id === data.pondId);
-    const newTx: FinanceTransaction = {
-      id: `tx-${Date.now()}`,
-      farmId: farm.id,
-      pondId: data.pondId,
-      pondName: targetPond ? targetPond.name.split(' ')[0] : undefined,
-      type: data.type,
-      category: data.category,
-      amount: data.amount,
-      occurredAt: new Date().toISOString(),
-      note: data.note,
-    };
-    setTransactions((prev) => [newTx, ...prev]);
-    showToast(
-      `บันทึก${data.type === 'INCOME' ? 'รายรับ' : 'รายจ่าย'} ${data.amount.toLocaleString('th-TH')} บาท เรียบร้อยแล้ว`
-    );
   };
 
   const financeSummary = calculateFinanceSummary(transactions);
   const activePondForDetail = ponds.find((p) => p.id === selectedPondDetailId);
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-thai">
-      {/* Top Header */}
-      <Header farmName={farm.name} />
+    <div className="min-h-screen bg-slate-50 flex flex-col font-thai selection:bg-sky-200">
+      {/* Top Header with navigation tabs */}
+      <Header
+        farmName={farm.name}
+        activeTab={activeTab}
+        onTabChange={(tab) => {
+          setActiveTab(tab);
+          if (tab !== 'PONDS') setSelectedPondDetailId(null);
+        }}
+      />
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-5 sm:py-6">
@@ -348,88 +410,151 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        {/* In-app Attention Alerts */}
+        {/* In-app Attention Alerts (Visible across sections) */}
         <AlertBanner alerts={alerts} onDismiss={handleDismissAlert} />
 
-        {/* View Toggle: Detail View or Main Overview */}
-        {selectedPondDetailId && activePondForDetail ? (
-          <PondDetailView
-            pond={activePondForDetail}
-            logs={logs}
-            onBack={() => setSelectedPondDetailId(null)}
-            onEditPond={handleOpenEditPond}
-            onAddLog={(pondId, initialType) => handleOpenAddLog(pondId, initialType)}
-            onEditLog={handleOpenEditLog}
-            onDeleteLog={handleDeleteLog}
-          />
-        ) : (
-          <>
-            {/* Milestone 1 System Foundation Architecture Card */}
-            <SystemFoundationCard />
-
-            {/* Quick Daily Actions */}
+        {/* TAB 1: HOME DASHBOARD */}
+        {activeTab === 'DASHBOARD' && (
+          <div>
+            {/* 1. Large Quick Actions */}
             <QuickActions onActionClick={handleQuickActionClick} />
 
-            {/* Finance Summary */}
-            <FinanceSummaryCard summary={financeSummary} />
+            {/* 2. Monthly Finance Summary Card (Clickable to switch to Finance tab) */}
+            <div
+              className="cursor-pointer group"
+              onClick={() => setActiveTab('FINANCE')}
+              title="กดเพื่อดูรายละเอียดบัญชีฟาร์ม"
+            >
+              <FinanceSummaryCard summary={financeSummary} />
+            </div>
 
-            {/* Pond Status Section */}
-            <section className="mb-8">
-              <div className="flex items-center justify-between mb-4">
+            {/* 3. Recent Observations & Mortality Card */}
+            <RecentObservationsCard
+              logs={logs}
+              ponds={ponds}
+              onAddObservation={() => handleOpenAddLog(undefined, 'ANIMAL_OBSERVATION')}
+            />
+
+            {/* 4. Latest Water Reading per Pond */}
+            <section className="mb-6">
+              <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <Fish className="w-5 h-5 text-sky-700" />
-                  <h2 className="text-lg sm:text-xl font-bold text-slate-900">
-                    สถานะบ่อเลี้ยง ({ponds.length} บ่อ)
+                  <h2 className="text-lg font-bold text-slate-800">
+                    สภาพน้ำล่าสุดของแต่ละบ่อ ({ponds.length} บ่อ)
                   </h2>
                 </div>
                 <button
-                  onClick={handleOpenCreatePond}
+                  onClick={() => setActiveTab('PONDS')}
                   type="button"
-                  className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-sky-700 hover:bg-sky-800 text-white shadow-xs transition-colors cursor-pointer"
+                  className="text-xs font-semibold text-sky-700 hover:text-sky-800 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>+ เพิ่มบ่อใหม่</span>
+                  ดูทั้งหมด →
                 </button>
               </div>
 
-              {ponds.length === 0 ? (
-                <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 p-8 text-center">
-                  <Fish className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-                  <h4 className="font-bold text-slate-700 text-base">
-                    ยังไม่มีบ่อในฟาร์ม
-                  </h4>
-                  <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                    กดปุ่มด้านล่างเพื่อสร้างบ่อเลี้ยงแรกของฟาร์มคุณ
-                  </p>
+              <div className="space-y-3">
+                {ponds.map((pond) => (
+                  <PondCard
+                    key={pond.id}
+                    pond={pond}
+                    onRecordClick={(pondId) => handleOpenAddLog(pondId, 'WATER_QUALITY')}
+                    onViewDetail={(pondId) => {
+                      setSelectedPondDetailId(pondId);
+                      setActiveTab('PONDS');
+                    }}
+                    onEditPond={handleOpenEditPond}
+                  />
+                ))}
+              </div>
+            </section>
+
+            {/* 5. System Foundation Card */}
+            <SystemFoundationCard />
+          </div>
+        )}
+
+        {/* TAB 2: PONDS MANAGEMENT */}
+        {activeTab === 'PONDS' && (
+          <div>
+            {selectedPondDetailId && activePondForDetail ? (
+              <PondDetailView
+                pond={activePondForDetail}
+                logs={logs}
+                onBack={() => setSelectedPondDetailId(null)}
+                onEditPond={handleOpenEditPond}
+                onAddLog={(pondId, initialType) => handleOpenAddLog(pondId, initialType)}
+                onEditLog={handleOpenEditLog}
+                onDeleteLog={handleDeleteLog}
+              />
+            ) : (
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Fish className="w-6 h-6 text-sky-700" />
+                    <h2 className="text-xl font-bold text-slate-900">
+                      จัดการบ่อเลี้ยง ({ponds.length} บ่อ)
+                    </h2>
+                  </div>
                   <button
-                    type="button"
                     onClick={handleOpenCreatePond}
-                    className="mt-4 px-4 py-2 bg-sky-700 text-white font-bold text-xs sm:text-sm rounded-xl hover:bg-sky-800 transition-colors cursor-pointer"
+                    type="button"
+                    className="flex items-center gap-1.5 text-xs sm:text-sm font-bold px-3.5 py-2 rounded-xl bg-sky-700 hover:bg-sky-800 active:bg-sky-900 text-white shadow-xs transition-colors cursor-pointer"
                   >
-                    + สร้างบ่อแรก
+                    <Plus className="w-4 h-4" />
+                    <span>+ เพิ่มบ่อใหม่</span>
                   </button>
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  {ponds.map((pond) => (
-                    <PondCard
-                      key={pond.id}
-                      pond={pond}
-                      onRecordClick={(pondId) =>
-                        handleOpenAddLog(pondId, 'WATER_QUALITY')
-                      }
-                      onViewDetail={(pondId) => setSelectedPondDetailId(pondId)}
-                      onEditPond={handleOpenEditPond}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
-          </>
+
+                {ponds.length === 0 ? (
+                  <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 p-8 text-center">
+                    <Fish className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                    <h4 className="font-bold text-slate-700 text-base">
+                      ยังไม่มีบ่อในฟาร์ม
+                    </h4>
+                    <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                      กดปุ่มด้านล่างเพื่อสร้างบ่อเลี้ยงแรกของฟาร์มคุณ
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleOpenCreatePond}
+                      className="mt-4 px-4 py-2 bg-sky-700 text-white font-bold text-xs sm:text-sm rounded-xl hover:bg-sky-800 transition-colors cursor-pointer"
+                    >
+                      + สร้างบ่อแรก
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {ponds.map((pond) => (
+                      <PondCard
+                        key={pond.id}
+                        pond={pond}
+                        onRecordClick={(pondId) =>
+                          handleOpenAddLog(pondId, 'WATER_QUALITY')
+                        }
+                        onViewDetail={(pondId) => setSelectedPondDetailId(pondId)}
+                        onEditPond={handleOpenEditPond}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 3: FINANCE & ACCOUNTING */}
+        {activeTab === 'FINANCE' && (
+          <FinanceView
+            transactions={transactions}
+            onAddTransaction={(type) => handleOpenAddFinance(type || 'INCOME')}
+            onEditTransaction={handleOpenEditFinance}
+            onDeleteTransaction={handleDeleteFinance}
+          />
         )}
       </main>
 
-      {/* Pond Create / Edit Modal */}
+      {/* Pond Modal */}
       <PondModal
         isOpen={isPondModalOpen}
         pondToEdit={pondToEdit}
@@ -438,7 +563,7 @@ export const App: React.FC = () => {
         onDelete={handleDeletePond}
       />
 
-      {/* Daily Log Create / Edit Modal */}
+      {/* Daily Log Modal */}
       <DailyLogModal
         isOpen={isLogModalOpen}
         ponds={ponds}
@@ -449,26 +574,17 @@ export const App: React.FC = () => {
         onSave={handleSaveLog}
       />
 
-      {/* Finance Quick Modal */}
-      <QuickRecordModal
-        actionType={activeQuickAction}
+      {/* Finance Modal */}
+      <FinanceModal
+        isOpen={isFinanceModalOpen}
         ponds={ponds}
-        onClose={() => setActiveQuickAction(null)}
-        onSaveWater={(pondId, data) =>
-          handleSaveLog({
-            pondId,
-            type: 'WATER_QUALITY',
-            dissolvedOxygen: data.do ?? null,
-            ph: data.ph ?? null,
-            salinity: data.salinity ?? null,
-            temperature: data.temp ?? null,
-            notes: data.notes ?? null,
-          })
-        }
-        onSaveFinance={handleSaveFinance}
+        transactionToEdit={financeToEdit}
+        initialType={financeInitialType}
+        onClose={() => setIsFinanceModalOpen(false)}
+        onSave={handleSaveFinance}
       />
 
-      {/* Confirm Action Dialog */}
+      {/* Confirm Dialog */}
       <ConfirmDialog
         isOpen={confirmDialog.isOpen}
         title={confirmDialog.title}
