@@ -255,6 +255,30 @@ Use Prisma migrations, decimal-safe money fields, and basic indexes for pond/dat
   - Deployed and verified live at [https://bodi-farm.vercel.app/](https://bodi-farm.vercel.app/).
   - All 31 unit tests pass, typecheck passes, and Prettier checks pass.
 
+### Milestone 6 — Progressive Web App (PWA), Bottom Nav, Location & Web Push `[COMPLETED]`
+
+- [x] **Progressive Web App (PWA):**
+  - Web App Manifest (`public/manifest.webmanifest`) with standalone display, orientations, theme colors (`#0284c7`), and icons.
+  - Service Worker (`public/sw.js`) handling offline static caching and background sync.
+  - Meta tags in `index.html` including `mobile-web-app-capable`, `apple-mobile-web-app-capable`, `apple-mobile-web-app-status-bar-style`.
+- [x] **Safe Area Insets (Notch, Dynamic Island, Home Indicator):**
+  - Added `viewport-fit=cover` to meta viewport in `index.html`.
+  - Added `.pt-safe`, `.pb-safe`, and `.bottom-safe` utility classes in `src/index.css`.
+  - Padded main content with `pb-28 sm:pb-10` to avoid bottom navigation overlap.
+- [x] **Glass/Grass Effect Bottom Navigation:**
+  - Floating frosted glass bottom navigation (`src/components/BottomNav.tsx`) with `backdrop-blur-xl bg-white/85` and subtle aquaculture tint.
+  - 3 primary tabs: หน้าหลัก (Dashboard), บ่อเลี้ยง (Ponds) with pond count badge, บัญชีฟาร์ม (Finance).
+  - Unread alert indicator dot.
+  - Responsive: Active on mobile screens, seamless integration with top tabs on desktop.
+- [x] **Location (GPS / Geolocation):**
+  - High-accuracy geolocation helper (`src/lib/location.ts`) with clear Thai error messages and coordinate formatting.
+  - "📍 ดึงพิกัด GPS" button in `DailyLogModal.tsx` to tag water sampling locations.
+  - "📍 ดึงพิกัด GPS" button in `PondModal.tsx` to record exact pond boundaries.
+- [x] **Web Push Notifications:**
+  - Push notification helper (`src/lib/pushNotifications.ts`) integrating `Notification` and `ServiceWorkerRegistration`.
+  - Service worker push event handler (`sw.js`) with custom title, body, vibrations, and click-to-open actions.
+  - In-app notification bell toggle in `Header.tsx` to request permission and activate risk alerts.
+
 ## 10. Out of Scope for V1
 
 - IoT sensors and device fleet management.
