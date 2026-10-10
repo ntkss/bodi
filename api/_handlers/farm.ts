@@ -39,7 +39,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  // PATCH: Update farm location and water source configuration
+  // PATCH / PUT: Update farm location and water source configuration
   if (req.method === 'PATCH' || req.method === 'PUT') {
     try {
       const parseResult = FarmUpdateSchema.safeParse(req.body);
@@ -70,7 +70,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json(updatedFarm);
     } catch (err) {
       console.error('Error updating farm profile:', err);
-      return res.status(500).json({ error: 'ไม่สามารถบันทึกข้อมูลฟาร์มได้' });
+      return res.status(500).json({ error: 'ไม่สามารถอัปเดตข้อมูลฟาร์มได้' });
     }
   }
 

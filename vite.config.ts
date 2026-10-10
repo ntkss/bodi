@@ -30,45 +30,6 @@ export default defineConfig({
     {
       name: 'api-dev-server',
       configureServer(server) {
-        const matchApiRoute = (pathname: string) => {
-          const p = pathname.replace(/\/$/, '');
-          const exactRoutes: Record<string, string> = {
-            '/api/health': './api/health.ts',
-            '/api/auth/google': './api/auth/google.ts',
-            '/api/auth/me': './api/auth/me.ts',
-            '/api/auth/dev-login': './api/auth/dev-login.ts',
-            '/api/ponds': './api/ponds/index.ts',
-            '/api/logs': './api/logs/index.ts',
-            '/api/finance': './api/finance/index.ts',
-            '/api/alerts': './api/alerts/index.ts',
-            '/api/farm': './api/farm/index.ts',
-            '/api/environmental': './api/environmental/index.ts',
-            '/api/environmental/sync': './api/environmental/sync.ts',
-          };
-
-          if (exactRoutes[p]) {
-            return { filePath: exactRoutes[p], params: {} };
-          }
-
-          const dynamicRoutes = [
-            { prefix: '/api/ponds/', filePath: './api/ponds/[id].ts' },
-            { prefix: '/api/logs/', filePath: './api/logs/[id].ts' },
-            { prefix: '/api/finance/', filePath: './api/finance/[id].ts' },
-            { prefix: '/api/alerts/', filePath: './api/alerts/[id].ts' },
-          ];
-
-          for (const route of dynamicRoutes) {
-            if (p.startsWith(route.prefix)) {
-              const id = p.slice(route.prefix.length);
-              if (id && !id.includes('/')) {
-                return { filePath: route.filePath, params: { id } };
-              }
-            }
-          }
-
-          return null;
-        };
-
         server.middlewares.use(async (req, res, next) => {
           if (!req.url || !req.url.startsWith('/api/')) {
             return next();
@@ -76,14 +37,6 @@ export default defineConfig({
 
           try {
             const urlObj = new URL(req.url, 'http://localhost:5173');
-            const match = matchApiRoute(urlObj.pathname);
-
-            if (!match) {
-              res.statusCode = 404;
-              res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ error: 'API route not found' }));
-              return;
-            }
 
             // Parse request body for methods that transmit payload
             let body: any = undefined;
@@ -102,7 +55,7 @@ export default defineConfig({
               }
             }
 
-            const query: Record<string, any> = { ...match.params };
+            const query: Record<string, any> = {};
             urlObj.searchParams.forEach((val, key) => {
               query[key] = val;
             });
@@ -129,7 +82,7 @@ export default defineConfig({
               return res;
             };
 
-            const mod = await server.ssrLoadModule(match.filePath);
+            const mod = await server.ssrLoadModule('./api/index.ts');
             const handler = mod.default || mod;
             await handler(req, res);
           } catch (err) {
