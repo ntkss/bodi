@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Fish, Droplets, DollarSign, ShieldCheck, AlertCircle } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
-  const { loginWithGoogle, isLoading } = useAuth();
+  const { loginWithGoogle, loginWithDevAccount, isLoading } = useAuth();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleGoogleSuccess = async (credential: string) => {
@@ -17,6 +17,14 @@ export const LoginPage: React.FC = () => {
 
   const handleGoogleError = () => {
     setErrorMessage('เกิดข้อผิดพลาดในการเชื่อมต่อกับ Google กรุณาลองใหม่');
+  };
+
+  const handleDevLogin = async () => {
+    setErrorMessage(null);
+    const success = await loginWithDevAccount();
+    if (!success) {
+      setErrorMessage('เข้าสู่ระบบทดสอบไม่สำเร็จ');
+    }
   };
 
   return (
@@ -109,6 +117,28 @@ export const LoginPage: React.FC = () => {
               <p className="text-xs text-sky-700 animate-pulse font-medium">
                 กำลังตรวจสอบข้อมูลและเชื่อมต่อฟาร์ม...
               </p>
+            )}
+
+            {import.meta.env.DEV && (
+              <div className="pt-2">
+                <div className="relative flex py-2 items-center">
+                  <div className="flex-grow border-t border-slate-200"></div>
+                  <span className="flex-shrink mx-3 text-[11px] text-slate-400 font-medium">
+                    หรือ สำหรับโหมดพัฒนา (Localhost)
+                  </span>
+                  <div className="flex-grow border-t border-slate-200"></div>
+                </div>
+                <button
+                  type="button"
+                  id="dev-login-btn"
+                  onClick={handleDevLogin}
+                  disabled={isLoading}
+                  className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-medium text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  <span>🌿</span>
+                  <span>เข้าสู่ระบบทดสอบ (Somchai Demo Farm)</span>
+                </button>
+              </div>
             )}
           </div>
 

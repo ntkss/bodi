@@ -3,6 +3,9 @@ import {
   PondLogInputSchema,
   FinanceTransactionInputSchema,
   PondInputSchema,
+  FarmInputSchema,
+  ReferenceStationInputSchema,
+  EnvironmentalReadingInputSchema,
 } from '../api/_lib/validators';
 
 describe('Zod Validation Schemas', () => {
@@ -86,6 +89,81 @@ describe('Zod Validation Schemas', () => {
       };
       const result = FinanceTransactionInputSchema.safeParse(data);
       expect(result.success).toBe(false);
+    });
+  });
+
+  describe('FarmInputSchema & FarmUpdateSchema (Location & Water Source)', () => {
+    it('accepts farm location and water path configuration', () => {
+      const data = {
+        name: 'บ่อดี ฟาร์มสมุทรสงคราม',
+        province: 'สมุทรสงคราม',
+        district: 'เมืองสมุทรสงคราม',
+        subdistrict: 'ลาดใหญ่',
+        latitude: 13.4098,
+        longitude: 99.9965,
+        waterSourceCanal: 'คลองแม่กลอง',
+        tidalInfluence: 'DIRECT',
+        waterPathNotes: 'เปิดรับน้ำตามรอบน้ำขึ้น-น้ำลง',
+      };
+      const result = FarmInputSchema.safeParse(data);
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects invalid latitude or longitude out of bounds', () => {
+      const invalidLat = {
+        name: 'บ่อดี ฟาร์ม',
+        latitude: 95.0, // Invalid lat (> 90)
+      };
+      expect(FarmInputSchema.safeParse(invalidLat).success).toBe(false);
+
+      const invalidLng = {
+        name: 'บ่อดี ฟาร์ม',
+        longitude: 195.0, // Invalid lng (> 180)
+      };
+      expect(FarmInputSchema.safeParse(invalidLng).success).toBe(false);
+    });
+  });
+
+  describe('ReferenceStationInputSchema', () => {
+    it('accepts valid reference station configuration with known provider', () => {
+      const data = {
+        name: 'สถานีตรวจวัดสภาพอากาศ สมุทรสงคราม',
+        provider: 'OPEN_METEO',
+        providerStationId: 'open-meteo-samut-songkhram',
+        verificationStatus: 'VERIFIED',
+        parameters: 'precipitation,temperature',
+        units: 'mm, °C',
+      };
+      const result = ReferenceStationInputSchema.safeParse(data);
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects station with unsupported provider', () => {
+      const data = {
+        name: 'สถานีปริศนา',
+        provider: 'UNKNOWN_PROVIDER',
+      };
+      const result = ReferenceStationInputSchema.safeParse(data);
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('EnvironmentalReadingInputSchema', () => {
+    it('accepts valid environmental reading and transforms ISO date string', () => {
+      const data = {
+        stationId: 'st-123',
+        parameter: 'precipitation',
+        value: 12.5,
+        unit: 'mm',
+        observedAt: '2026-10-10T14:00:00Z',
+        status: 'VALID',
+      };
+      const result = EnvironmentalReadingInputSchema.safeParse(data);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.observedAt).toBeInstanceOf(Date);
+        expect(result.data.fetchedAt).toBeInstanceOf(Date);
+      }
     });
   });
 });

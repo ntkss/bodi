@@ -33,12 +33,24 @@ model Farm {
   userId    String
   name      String
   timezone  String   @default("Asia/Bangkok")
+  
+  // Farm Location & Water Source (Milestone 1)
+  province            String?   @default("สมุทรสงคราม") // e.g. "สมุทรสงคราม"
+  district            String?   // e.g. "เมืองสมุทรสงคราม", "อัมพวา", "บางคนที"
+  subdistrict         String?   // e.g. "ลาดใหญ่", "คลองโคน", "แหลมใหญ่"
+  latitude            Float?    // ละติจูด (WGS84)
+  longitude           Float?    // ลองจิจูด (WGS84)
+  waterSourceCanal    String?   // ชื่อคลองส่งน้ำธรรมชาติที่เชื่อมกับบ่อ e.g. "คลองสุนทรวิจิตร", "คลองแม่กลอง"
+  tidalInfluence      String?   @default("DIRECT") // DIRECT, INDIRECT, NONE, UNKNOWN
+  waterPathNotes      String?   // ลักษณะทางน้ำ/ระยะห่างจากปากอ่าว/ประตูระบายน้ำ
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   ponds               Pond[]
   financeTransactions FinanceTransaction[]
+  referenceStations   ReferenceStation[]
 
   @@index([userId])
   @@map("farms")
@@ -150,3 +162,50 @@ model Alert {
   @@index([dedupeKey])
   @@map("alerts")
 }
+
+// ReferenceStation: Environmental monitoring reference station (weather, tide, water quality)
+model ReferenceStation {
+  id                 String    @id @default(cuid())
+  farmId             String?   // Optional: can be farm-specific or system-wide reference
+  provider           String    // e.g. "OPEN_METEO", "NAVY_HYDRO", "THAI_WATER", "PCD_IWIS", "MANUAL"
+  providerStationId  String?   // Provider's own station code e.g. "PAK_NAM_MAE_KLONG", "open-meteo"
+  name               String    // e.g. "สถานีตรวจวัดสภาพอากาศ สมุทรสงคราม (Open-Meteo)", "สถานีปากน้ำแม่กลอง (กรมอุทกศาสตร์ ทร.)"
+  sourceUrl          String?   // Official source or documentation URL
+  latitude           Float?
+  longitude          Float?
+  parameters         String?   // Supported parameters e.g. "rainfall,temperature" or "tide_prediction"
+  units              String?   // Units e.g. "mm, °C" or "m (LLW)"
+  relevanceNotes     String?   // Why relevant, limitations, hydrological context
+  verificationStatus String    @default("CANDIDATE") // VERIFIED, CANDIDATE, UNAVAILABLE, BLOCKED
+  lastCheckedAt      DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  farm               Farm?     @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  readings           EnvironmentalReading[]
+
+  @@index([farmId])
+  @@index([provider, verificationStatus])
+  @@map("reference_stations")
+}
+
+// EnvironmentalReading: Time-series normalized observation from external reference station
+model EnvironmentalReading {
+  id             String    @id @default(cuid())
+  stationId      String
+  parameter      String    // e.g. "precipitation", "rain", "temperature", "tide_level"
+  value          Float
+  unit           String    // e.g. "mm", "°C", "m"
+  observedAt     DateTime  // Exact observation timestamp from data source
+  fetchedAt      DateTime  @default(now()) // Timestamp when BODI system retrieved the data
+  status         String    @default("VALID") // VALID, STALE, UNVERIFIED, SUSPECT
+  sourceRecordId String?   // Provider internal record ID or sync batch identifier
+  createdAt      DateTime  @default(now())
+
+  station        ReferenceStation @relation(fields: [stationId], references: [id], onDelete: Cascade)
+
+  @@index([stationId, observedAt])
+  @@index([stationId, parameter])
+  @@map("environmental_readings")
+}
+

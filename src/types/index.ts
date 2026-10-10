@@ -10,7 +10,53 @@ export interface Farm {
   id: string;
   name: string;
   timezone: string;
-  createdAt: string;
+  province?: string | null;
+  district?: string | null;
+  subdistrict?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  waterSourceCanal?: string | null;
+  tidalInfluence?: string | null;
+  waterPathNotes?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type VerificationStatus = 'VERIFIED' | 'CANDIDATE' | 'UNAVAILABLE' | 'BLOCKED';
+export type FreshnessStatus = 'FRESH' | 'STALE' | 'NO_DATA';
+
+export interface ReferenceStation {
+  id: string;
+  farmId?: string | null;
+  provider: 'OPEN_METEO' | 'NAVY_HYDRO' | 'THAI_WATER' | 'PCD_IWIS' | 'MANUAL' | string;
+  providerStationId?: string | null;
+  name: string;
+  sourceUrl?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  parameters?: string | null;
+  units?: string | null;
+  relevanceNotes?: string | null;
+  verificationStatus: VerificationStatus;
+  lastCheckedAt?: string | null;
+  readings?: EnvironmentalReading[];
+  latestReading?: EnvironmentalReading | null;
+  freshness?: FreshnessStatus;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface EnvironmentalReading {
+  id: string;
+  stationId: string;
+  parameter: string;
+  value: number;
+  unit: string;
+  observedAt: string;
+  fetchedAt: string;
+  status: 'VALID' | 'STALE' | 'UNVERIFIED' | 'SUSPECT' | string;
+  sourceRecordId?: string | null;
+  createdAt?: string;
 }
 
 export interface Pond {

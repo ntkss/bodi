@@ -13,6 +13,8 @@ import { DailyLogModal } from './components/DailyLogModal';
 import { PondDetailView } from './components/PondDetailView';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { LoginPage } from './components/LoginPage';
+import { FarmLocationModal } from './components/FarmLocationModal';
+import { EnvironmentalCard } from './components/EnvironmentalCard';
 import { useAuth } from './context/AuthContext';
 import { calculateFinanceSummary } from './lib/finance';
 import {
@@ -20,11 +22,26 @@ import {
   requestPushPermission,
   getNotificationPermission,
 } from './lib/pushNotifications';
-import { Pond, PondLog, PondStatus, LogType, FinanceTransaction, Alert } from './types';
+import {
+  Pond,
+  PondLog,
+  PondStatus,
+  LogType,
+  FinanceTransaction,
+  Alert,
+  ReferenceStation,
+} from './types';
 import { Fish, Plus, Check, Loader2, Sparkles } from 'lucide-react';
 
 export const App: React.FC = () => {
-  const { user, farm, logout, authFetch, isLoading: isAuthLoading } = useAuth();
+  const {
+    user,
+    farm,
+    logout,
+    authFetch,
+    setFarmProfile,
+    isLoading: isAuthLoading,
+  } = useAuth();
   const [activeTab, setActiveTab] = useState<AppTab>('DASHBOARD');
 
   // Real Database Domain State (Zero Mock Data)
@@ -32,8 +49,11 @@ export const App: React.FC = () => {
   const [logs, setLogs] = useState<PondLog[]>([]);
   const [transactions, setTransactions] = useState<FinanceTransaction[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [stations, setStations] = useState<ReferenceStation[]>([]);
   const [isLoadingData, setIsLoadingData] = useState<boolean>(true);
   const [isPushEnabled, setIsPushEnabled] = useState<boolean>(false);
+  const [isLocationModalOpen, setIsLocationModalOpen] = useState<boolean>(false);
+  const [isSyncingEnvironmental, setIsSyncingEnvironmental] = useState<boolean>(false);
 
   // Selected Pond for detail view
   const [selectedPondDetailId, setSelectedPondDetailId] = useState<string | null>(null);
@@ -79,11 +99,12 @@ export const App: React.FC = () => {
     if (!user) return;
     setIsLoadingData(true);
     try {
-      const [pondsRes, logsRes, financeRes, alertsRes] = await Promise.all([
+      const [pondsRes, logsRes, financeRes, alertsRes, stationsRes] = await Promise.all([
         authFetch('/api/ponds'),
         authFetch('/api/logs'),
         authFetch('/api/finance'),
         authFetch('/api/alerts'),
+        authFetch('/api/environmental'),
       ]);
 
       if (pondsRes.ok) {
@@ -101,6 +122,10 @@ export const App: React.FC = () => {
       if (alertsRes.ok) {
         const alertsData = await alertsRes.json();
         setAlerts(alertsData);
+      }
+      if (stationsRes.ok) {
+        const stationsData = await stationsRes.json();
+        setStations(stationsData);
       }
     } catch (err) {
       console.error('Failed to load farm data from server:', err);
@@ -409,6 +434,59 @@ export const App: React.FC = () => {
     });
   };
 
+  const handleSaveFarmLocation = async (data: {
+    province?: string;
+    district?: string;
+    subdistrict?: string;
+    latitude?: number | null;
+    longitude?: number | null;
+    waterSourceCanal?: string;
+    tidalInfluence?: string;
+    waterPathNotes?: string;
+  }) => {
+    try {
+      const res = await authFetch('/api/farm', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+
+      if (res.ok) {
+        const updatedFarm = await res.json();
+        setFarmProfile(updatedFarm);
+        await loadFarmData();
+        showToast('บันทึกข้อมูลที่ตั้งฟาร์มและทางน้ำเรียบร้อยแล้ว');
+      } else {
+        const error = await res.json();
+        showToast(error.error || 'ไม่สามารถบันทึกที่ตั้งฟาร์มได้');
+      }
+    } catch {
+      showToast('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+    }
+  };
+
+  const handleSyncEnvironmental = async () => {
+    setIsSyncingEnvironmental(true);
+    try {
+      const res = await authFetch('/api/environmental/sync', {
+        method: 'POST',
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        await loadFarmData();
+        showToast(`ดึงข้อมูลสดสำเร็จ (${data.readingsCount} ค่าตรวจวัด)`);
+      } else {
+        const error = await res.json();
+        showToast(error.error || 'ไม่สามารถดึงข้อมูลสดจากแหล่งข้อมูลได้');
+      }
+    } catch {
+      showToast('เชื่อมต่อบริการข้อมูลภายนอกล้มเหลว');
+    } finally {
+      setIsSyncingEnvironmental(false);
+    }
+  };
+
   // Quick Action routing from Home Dashboard
   const handleQuickActionClick = (action: string) => {
     if (
@@ -514,7 +592,16 @@ export const App: React.FC = () => {
               onAddObservation={() => handleOpenAddLog(undefined, 'ANIMAL_OBSERVATION')}
             />
 
-            {/* 4. Active Ponds Status List or Empty State */}
+            {/* 4. Environmental Reference Stations Card (Milestone 1) */}
+            <EnvironmentalCard
+              stations={stations}
+              farm={farm}
+              onOpenLocationModal={() => setIsLocationModalOpen(true)}
+              onSyncVerifiedSource={handleSyncEnvironmental}
+              isSyncing={isSyncingEnvironmental}
+            />
+
+            {/* 5. Active Ponds Status List or Empty State */}
             <div className="mt-6 mb-8">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
@@ -705,6 +792,14 @@ export const App: React.FC = () => {
         message={confirmDialog.message}
         onConfirm={confirmDialog.onConfirm}
         onCancel={() => setConfirmDialog((prev) => ({ ...prev, isOpen: false }))}
+      />
+
+      {/* Farm Location & Water Path Modal (Milestone 1) */}
+      <FarmLocationModal
+        isOpen={isLocationModalOpen}
+        onClose={() => setIsLocationModalOpen(false)}
+        farm={farm}
+        onSave={handleSaveFarmLocation}
       />
 
       {/* Footer */}

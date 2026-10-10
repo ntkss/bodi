@@ -6,6 +6,8 @@ async function main() {
   console.log('🌱 Starting BODI database seed...');
 
   // Clean existing demo data (if any) in reverse order
+  await prisma.environmentalReading.deleteMany();
+  await prisma.referenceStation.deleteMany();
   await prisma.alert.deleteMany();
   await prisma.financeTransaction.deleteMany();
   await prisma.pondLog.deleteMany();
@@ -23,12 +25,21 @@ async function main() {
     },
   });
 
-  // 2. Create Farm
+  // 2. Create Farm with Location & Water Path (Samut Songkhram target area)
   const farm = await prisma.farm.create({
     data: {
       userId: user.id,
-      name: 'บ่อดี ฟาร์มลุงสมชาย (คลองด่าน)',
+      name: 'บ่อดี ฟาร์มลุงสมชาย (สมุทรสงคราม)',
       timezone: 'Asia/Bangkok',
+      province: 'สมุทรสงคราม',
+      district: 'เมืองสมุทรสงคราม',
+      subdistrict: 'ลาดใหญ่',
+      latitude: 13.4098,
+      longitude: 99.9965,
+      waterSourceCanal: 'คลองแม่กลอง / คลองสุนทรวิจิตร',
+      tidalInfluence: 'DIRECT',
+      waterPathNotes:
+        'รับน้ำเค็มตามจังหวะน้ำขึ้นจากปากอ่าวแม่กลอง ผ่านคลองส่งน้ำแยกประมาณ 3.2 กม. มีประตูท่อระบายน้ำควบคุม',
     },
   });
 
@@ -199,13 +210,128 @@ async function main() {
     },
   });
 
+  // 7. Create Reference Stations (Milestone 1 — Data Discovery & Station Setup)
+  const stationOpenMeteo = await prisma.referenceStation.create({
+    data: {
+      farmId: farm.id,
+      provider: 'OPEN_METEO',
+      providerStationId: 'open-meteo-samut-songkhram',
+      name: 'สถานีตรวจวัดสภาพอากาศ สมุทรสงคราม (Open-Meteo)',
+      sourceUrl: 'https://open-meteo.com/en/docs',
+      latitude: 13.4098,
+      longitude: 99.9965,
+      parameters: 'precipitation,rain,temperature,relative_humidity',
+      units: 'mm, °C, %',
+      relevanceNotes:
+        'ข้อมูลฝนและสภาพอากาศในพื้นที่สมุทรสงคราม ใช้เฝ้าระวังฝนชะหน้าดินและความเค็มลดลงกระทันหัน (ฟรีเพื่อการศึกษา/ทดสอบแบบ non-commercial <10,000 ครั้ง/วัน อ้างอิง CC BY 4.0)',
+      verificationStatus: 'VERIFIED',
+      lastCheckedAt: now,
+    },
+  });
+
+  const stationNavy = await prisma.referenceStation.create({
+    data: {
+      farmId: farm.id,
+      provider: 'NAVY_HYDRO',
+      providerStationId: 'PAK_NAM_MAE_KLONG_MK',
+      name: 'สถานีมาตราน้ำปากน้ำแม่กลอง (กรมอุทกศาสตร์ กองทัพเรือ)',
+      sourceUrl: 'https://hydro.navy.mi.th/waterlaveltable',
+      latitude: 13.355,
+      longitude: 100.005,
+      parameters: 'tide_prediction',
+      units: 'm (LLW / MSL)',
+      relevanceNotes:
+        'มาตราน้ำทำนายรายปีทางดาราศาสตร์บริเวณปากอ่าวแม่กลอง สำหรับวางแผนจังหวะเปิด-ปิดประตูระบายน้ำ (ข้อควรระวัง: เป็นระดับน้ำทำนาย ไม่ใช่ระดับน้ำตรวจวัดจริงในคลองซอย)',
+      verificationStatus: 'CANDIDATE',
+    },
+  });
+
+  await prisma.referenceStation.create({
+    data: {
+      farmId: farm.id,
+      provider: 'THAI_WATER',
+      providerStationId: 'HII_MAE_KLONG',
+      name: 'สถาบันสารสนเทศทรัพยากรน้ำ (สสน. / ThaiWater)',
+      sourceUrl: 'https://standard.thaiwater.net',
+      latitude: 13.41,
+      longitude: 99.99,
+      parameters: 'rainfall,water_level,runoff',
+      units: 'mm, m (MSL)',
+      relevanceNotes:
+        'มาตรฐานการแลกเปลี่ยนข้อมูลน้ำภาครัฐ ไม่มี Public REST API สาธารณะสำหรับบุคคลที่สามโดยไม่มีข้อตกลงร่วม (MoU) สถานะปัจจุบันถูกระงับการเชื่อมต่อตรง',
+      verificationStatus: 'BLOCKED',
+    },
+  });
+
+  await prisma.referenceStation.create({
+    data: {
+      farmId: farm.id,
+      provider: 'PCD_IWIS',
+      providerStationId: 'PCD_IWIS_MAE_KLONG',
+      name: 'กรมควบคุมมลพิษ IWIS (แม่น้ำแม่กลองตอนล่าง)',
+      sourceUrl: 'https://iwis.pcd.go.th',
+      latitude: 13.38,
+      longitude: 99.99,
+      parameters: 'dissolved_oxygen,salinity,ph',
+      units: 'mg/L, ppt',
+      relevanceNotes:
+        'ระบบติดตามคุณภาพน้ำผิวดิน ให้บริการเฉพาะหน้าเว็บแดชบอร์ด ไม่มี Documented Open API สาธารณะที่ใช้งานได้สำหรับแอปทั่วไป',
+      verificationStatus: 'BLOCKED',
+    },
+  });
+
+  // Seed verified environmental readings for Open-Meteo station
+  await prisma.environmentalReading.create({
+    data: {
+      stationId: stationOpenMeteo.id,
+      parameter: 'precipitation',
+      value: 0.0,
+      unit: 'mm',
+      observedAt: twoHoursAgo,
+      fetchedAt: now,
+      status: 'VALID',
+      sourceRecordId: `seed-precip-${now.getTime()}`,
+    },
+  });
+
+  await prisma.environmentalReading.create({
+    data: {
+      stationId: stationOpenMeteo.id,
+      parameter: 'temperature',
+      value: 29.2,
+      unit: '°C',
+      observedAt: twoHoursAgo,
+      fetchedAt: now,
+      status: 'VALID',
+      sourceRecordId: `seed-temp-${now.getTime()}`,
+    },
+  });
+
+  // Seed sample tide prediction for Navy station (marked CANDIDATE / manual import)
+  await prisma.environmentalReading.create({
+    data: {
+      stationId: stationNavy.id,
+      parameter: 'tide_level',
+      value: 2.85,
+      unit: 'm (LLW)',
+      observedAt: now,
+      fetchedAt: now,
+      status: 'VALID',
+      sourceRecordId: 'seed-navy-tide-import-mk2026',
+    },
+  });
+
   console.log('✅ Seed data inserted successfully:');
   console.log(` - User: ${user.name} (${user.email})`);
   console.log(` - Farm: ${farm.name}`);
+  console.log(` - Location: ${farm.province} อ.${farm.district} ต.${farm.subdistrict}`);
   console.log(` - Ponds: 3 ponds created (2 active, 1 resting)`);
   console.log(` - Pond Logs: 4 logs created`);
   console.log(` - Transactions: 2 incomes, 3 expenses`);
   console.log(` - Alerts: 1 active alert`);
+  console.log(
+    ` - Reference Stations: 4 stations configured (1 verified, 1 candidate, 2 blocked)`
+  );
 }
 
 main()

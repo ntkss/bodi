@@ -153,6 +153,14 @@ export async function getAuthContext(req: VercelRequest) {
       id: farm.id,
       name: farm.name,
       timezone: farm.timezone,
+      province: farm.province,
+      district: farm.district,
+      subdistrict: farm.subdistrict,
+      latitude: farm.latitude,
+      longitude: farm.longitude,
+      waterSourceCanal: farm.waterSourceCanal,
+      tidalInfluence: farm.tidalInfluence,
+      waterPathNotes: farm.waterPathNotes,
     },
   };
 }

@@ -4,7 +4,16 @@ import { z } from 'zod';
 export const FarmInputSchema = z.object({
   name: z.string().trim().min(1, 'กรุณาระบุชื่อฟาร์ม'),
   timezone: z.string().default('Asia/Bangkok'),
+  province: z.string().trim().optional().nullable(),
+  district: z.string().trim().optional().nullable(),
+  subdistrict: z.string().trim().optional().nullable(),
+  latitude: z.number().min(-90).max(90).optional().nullable(),
+  longitude: z.number().min(-180).max(180).optional().nullable(),
+  waterSourceCanal: z.string().trim().optional().nullable(),
+  tidalInfluence: z.enum(['DIRECT', 'INDIRECT', 'NONE', 'UNKNOWN']).optional().nullable(),
+  waterPathNotes: z.string().trim().optional().nullable(),
 });
+export const FarmUpdateSchema = FarmInputSchema.partial();
 
 // Pond validation schema
 export const PondInputSchema = z.object({
@@ -79,6 +88,42 @@ export const AlertStatusUpdateSchema = z.object({
   status: z.enum(['UNREAD', 'REVIEWED', 'RESOLVED']),
 });
 
+// ReferenceStation validation schema
+export const ReferenceStationInputSchema = z.object({
+  farmId: z.string().trim().optional().nullable(),
+  provider: z.enum(['OPEN_METEO', 'NAVY_HYDRO', 'THAI_WATER', 'PCD_IWIS', 'MANUAL']),
+  providerStationId: z.string().trim().optional().nullable(),
+  name: z.string().trim().min(1, 'กรุณาระบุชื่อสถานี'),
+  sourceUrl: z.string().trim().optional().nullable(),
+  latitude: z.number().min(-90).max(90).optional().nullable(),
+  longitude: z.number().min(-180).max(180).optional().nullable(),
+  parameters: z.string().trim().optional().nullable(),
+  units: z.string().trim().optional().nullable(),
+  relevanceNotes: z.string().trim().optional().nullable(),
+  verificationStatus: z
+    .enum(['VERIFIED', 'CANDIDATE', 'UNAVAILABLE', 'BLOCKED'])
+    .default('CANDIDATE'),
+});
+
+export const ReferenceStationUpdateSchema = ReferenceStationInputSchema.partial();
+
+// EnvironmentalReading validation schema
+export const EnvironmentalReadingInputSchema = z.object({
+  stationId: z.string().min(1, 'กรุณาระบุรหัสสถานีอ้างอิง'),
+  parameter: z.string().trim().min(1, 'กรุณาระบุตัวแปรการตรวจวัด'),
+  value: z.number(),
+  unit: z.string().trim().min(1, 'กรุณาระบุหน่วยวัด'),
+  observedAt: z
+    .union([z.string(), z.date()])
+    .transform((val) => (val instanceof Date ? val : new Date(val))),
+  fetchedAt: z
+    .union([z.string(), z.date()])
+    .optional()
+    .transform((val) => (val ? new Date(val) : new Date())),
+  status: z.enum(['VALID', 'STALE', 'UNVERIFIED', 'SUSPECT']).default('VALID'),
+  sourceRecordId: z.string().trim().optional().nullable(),
+});
+
 // Update schemas for correcting mistakes
 export const PondUpdateSchema = PondInputSchema.partial().omit({ farmId: true });
 export const PondLogUpdateSchema = PondLogInputSchema.partial().omit({ pondId: true });
@@ -86,6 +131,7 @@ export const FinanceTransactionUpdateSchema =
   FinanceTransactionInputSchema.partial().omit({ farmId: true });
 
 export type FarmInput = z.infer<typeof FarmInputSchema>;
+export type FarmUpdate = z.infer<typeof FarmUpdateSchema>;
 export type PondInput = z.infer<typeof PondInputSchema>;
 export type PondUpdate = z.infer<typeof PondUpdateSchema>;
 export type PondLogInput = z.infer<typeof PondLogInputSchema>;
@@ -93,3 +139,6 @@ export type PondLogUpdate = z.infer<typeof PondLogUpdateSchema>;
 export type FinanceTransactionInput = z.infer<typeof FinanceTransactionInputSchema>;
 export type FinanceTransactionUpdate = z.infer<typeof FinanceTransactionUpdateSchema>;
 export type AlertStatusUpdate = z.infer<typeof AlertStatusUpdateSchema>;
+export type ReferenceStationInput = z.infer<typeof ReferenceStationInputSchema>;
+export type ReferenceStationUpdate = z.infer<typeof ReferenceStationUpdateSchema>;
+export type EnvironmentalReadingInput = z.infer<typeof EnvironmentalReadingInputSchema>;

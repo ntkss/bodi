@@ -12,6 +12,14 @@ export interface FarmProfile {
   id: string;
   name: string;
   timezone: string;
+  province?: string | null;
+  district?: string | null;
+  subdistrict?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  waterSourceCanal?: string | null;
+  tidalInfluence?: string | null;
+  waterPathNotes?: string | null;
 }
 
 interface AuthContextType {
@@ -20,8 +28,10 @@ interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   loginWithGoogle: (credential: string) => Promise<boolean>;
+  loginWithDevAccount: () => Promise<boolean>;
   logout: () => void;
   authFetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+  setFarmProfile: (farm: FarmProfile) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -123,6 +133,35 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // Dev login handler (for localhost development)
+  const loginWithDevAccount = async (): Promise<boolean> => {
+    try {
+      setIsLoading(true);
+      const res = await fetch('/api/auth/dev-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.error('Dev login error:', err);
+        return false;
+      }
+
+      const data = await res.json();
+      localStorage.setItem(TOKEN_STORAGE_KEY, data.token);
+      setToken(data.token);
+      setUser(data.user);
+      setFarm(data.farm);
+      return true;
+    } catch (err) {
+      console.error('Network error during dev login:', err);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Logout handler
   const logout = () => {
     localStorage.removeItem(TOKEN_STORAGE_KEY);
@@ -139,8 +178,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         token,
         isLoading,
         loginWithGoogle,
+        loginWithDevAccount,
         logout,
         authFetch,
+        setFarmProfile: setFarm,
       }}
     >
       {children}

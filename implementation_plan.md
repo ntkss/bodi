@@ -277,7 +277,14 @@ Use Prisma migrations, decimal-safe money fields, and basic indexes for pond/dat
 - [x] **Web Push Notifications:**
   - Push notification helper (`src/lib/pushNotifications.ts`) integrating `Notification` and `ServiceWorkerRegistration`.
   - Service worker push event handler (`sw.js`) with custom title, body, vibrations, and click-to-open actions.
-  - In-app notification bell toggle in `Header.tsx` to request permission and activate risk alerts.
+
+### Milestone 7 — Water Risk Alerts (Milestone 1: Data Discovery & Station Setup) [COMPLETED ✅]
+
+- [x] Schema: Added Farm location & water path fields, `ReferenceStation`, and `EnvironmentalReading` models with Prisma migration applied (`20261010220000_add_environmental_risk_milestone_1`).
+- [x] Documentation: Created `docs/water-data-sources.md` analyzing Open-Meteo (Verified), Navy Pak Nam Mae Klong (Candidate table), ThaiWater (Blocked), and PCD IWIS (Blocked).
+- [x] End-to-end Verified Integration: Server-side sync for Open-Meteo live rainfall & weather with strict separation of `observedAt` and `fetchedAt`, and >3h staleness detection.
+- [x] UI: `FarmLocationModal` and `EnvironmentalCard` on Dashboard distinguishing verified, candidate, blocked, and stale sources.
+- [x] Tests: Added 100% passing tests for normalization, freshness, and bounds checking (`tests/environmental.test.ts`).
 
 ## 10. Out of Scope for V1
 
