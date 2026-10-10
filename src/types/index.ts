@@ -24,6 +24,8 @@ export interface Pond {
   status: PondStatus;
   notes?: string;
   latestLog?: PondLog;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface PondLog {

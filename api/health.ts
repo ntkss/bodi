@@ -16,6 +16,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       dbStatus = 'connected';
     } else {
       dbStatus = 'unconfigured';
+      dbError = 'ยังไม่ได้ตั้งค่า DATABASE_URL ใน Vercel Environment Variables';
     }
   } catch (err) {
     dbStatus = 'disconnected';

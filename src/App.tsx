@@ -20,6 +20,7 @@ import {
   initialAlerts,
 } from './lib/mockData';
 import { calculateFinanceSummary } from './lib/finance';
+import { evaluateFarmAlerts } from './lib/alerts';
 import { Pond, PondLog, PondStatus, LogType, FinanceTransaction, Alert } from './types';
 import { Fish, Plus, Check } from 'lucide-react';
 
@@ -75,12 +76,19 @@ export const App: React.FC = () => {
     setTimeout(() => setNotification(null), 3500);
   };
 
-  // Dismiss alert
-  const handleDismissAlert = (id: string) => {
+  // Alert handlers (Milestone 4)
+  const handleReviewAlert = (id: string) => {
     setAlerts((prev) =>
       prev.map((a) => (a.id === id ? { ...a, status: 'REVIEWED' as const } : a))
     );
-    showToast('รับทราบการแจ้งเตือนเรียบร้อยแล้ว');
+    showToast('รับทราบการแจ้งเตือนแล้ว');
+  };
+
+  const handleResolveAlert = (id: string) => {
+    setAlerts((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, status: 'RESOLVED' as const } : a))
+    );
+    showToast('ทำเครื่องหมายแก้ไขเรียบร้อย บ่อกลับสู่ภาวะปกติ');
   };
 
   // Helper to get latest log for pond
@@ -265,6 +273,21 @@ export const App: React.FC = () => {
         return p;
       })
     );
+
+    // Milestone 4: Trigger documented alert evaluation against new record
+    const newlyTriggeredAlerts = evaluateFarmAlerts(ponds, updatedLogs, alerts);
+    if (newlyTriggeredAlerts.length > 0) {
+      setAlerts((prev) => [...newlyTriggeredAlerts, ...prev]);
+      showToast(
+        `บันทึกข้อมูลแล้ว (ตรวจพบการแจ้งเตือน ${newlyTriggeredAlerts.length} รายการ)`
+      );
+    } else {
+      showToast(
+        logData.id
+          ? 'แก้ไขบันทึกข้อผิดพลาดเรียบร้อยแล้ว'
+          : 'เพิ่มบันทึกข้อมูลเรียบร้อยแล้ว'
+      );
+    }
   };
 
   const handleDeleteLog = (logId: string) => {
@@ -411,7 +434,11 @@ export const App: React.FC = () => {
         )}
 
         {/* In-app Attention Alerts (Visible across sections) */}
-        <AlertBanner alerts={alerts} onDismiss={handleDismissAlert} />
+        <AlertBanner
+          alerts={alerts}
+          onReview={handleReviewAlert}
+          onResolve={handleResolveAlert}
+        />
 
         {/* TAB 1: HOME DASHBOARD */}
         {activeTab === 'DASHBOARD' && (

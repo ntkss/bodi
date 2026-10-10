@@ -220,11 +220,22 @@ Use Prisma migrations, decimal-safe money fields, and basic indexes for pond/dat
   - Vercel Serverless endpoints (`api/finance/index.ts`, `api/finance/[id].ts`).
   - Unit tests for finance CRUD, date filtering, and CSV export (`tests/finance_crud.test.ts` passed 5/5 tests).
 
-### Milestone 4 — Basic alerts
+### Milestone 4 — Basic alerts `[COMPLETED]`
 
-- A small number of documented rules create understandable in-app alerts.
-- Duplicate alerts are avoided.
-- User can mark alerts reviewed/resolved.
+- [x] **Documented Alert Rules Engine:**
+  - Rule 1: DO (ออกซิเจนละลายน้ำ) ต่ำกว่า 3.5 mg/L (Critical < 2.5 mg/L, Warning < 3.5 mg/L).
+  - Rule 2: ค่า pH ผิดปกติ (ต่ำกว่า 7.0 หรือ สูงกว่า 9.0).
+  - Rule 3: พบสัตว์น้ำตาย (>0 ตัว) หรือพบอาการผิดปกติ (ลอยหัว, ตัวแดง, เหงือกดำ).
+  - Rule 4: ข้อมูลค่าน้ำเก่าเกินกำหนด (>3 วัน) สำหรับบ่อที่กำลังเลี้ยงอยู่.
+- [x] **Alert Deduplication:**
+  - สร้าง `dedupeKey` ที่มีรูปแบบ `${rule}_${pondId}_${date}` ป้องกันการแจ้งเตือนซ้ำซ้อนในวันเดียวกัน.
+- [x] **In-App Alerts UI & Workflow:**
+  - แสดงเหตุผลที่เกิดการแจ้งเตือนอย่างชัดเจนและระบุเวลาที่บันทึก.
+  - รองรับการเปลี่ยนสถานะเป็น "รับทราบแล้ว (REVIEWED)" และ "แก้ไข/ปกติแล้ว (RESOLVED)".
+  - มีประวัติการแจ้งเตือนและคู่มือกฎเกณฑ์ 4 ข้อในระบบ.
+- [x] **API Endpoints & Validation:**
+  - Vercel Serverless endpoints (`api/alerts/index.ts`, `api/alerts/[id].ts`).
+  - Unit tests ครอบคลุมกฎทั้ง 4 ข้อ และการป้องกันการแจ้งเตือนซ้ำ (`tests/alerts.test.ts` passed 7/7 tests).
 
 ### Milestone 5 — Evaluate before expanding
 
