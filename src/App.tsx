@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Header, AppTab } from './components/Header';
 import { AlertBanner } from './components/AlertBanner';
 import { SystemFoundationCard } from './components/SystemFoundationCard';
@@ -12,44 +12,36 @@ import { PondModal } from './components/PondModal';
 import { DailyLogModal } from './components/DailyLogModal';
 import { PondDetailView } from './components/PondDetailView';
 import { ConfirmDialog } from './components/ConfirmDialog';
-import {
-  initialFarm,
-  initialPonds,
-  initialLogs,
-  initialTransactions,
-  initialAlerts,
-} from './lib/mockData';
+import { LoginPage } from './components/LoginPage';
+import { useAuth } from './context/AuthContext';
 import { calculateFinanceSummary } from './lib/finance';
-import { evaluateFarmAlerts } from './lib/alerts';
 import { Pond, PondLog, PondStatus, LogType, FinanceTransaction, Alert } from './types';
-import { Fish, Plus, Check } from 'lucide-react';
+import { Fish, Plus, Check, Loader2, Sparkles } from 'lucide-react';
 
 export const App: React.FC = () => {
-  const [farm] = useState(initialFarm);
+  const { user, farm, logout, authFetch, isLoading: isAuthLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<AppTab>('DASHBOARD');
 
-  // Domain state
-  const [ponds, setPonds] = useState<Pond[]>(initialPonds);
-  const [logs, setLogs] = useState<PondLog[]>(initialLogs);
-  const [transactions, setTransactions] =
-    useState<FinanceTransaction[]>(initialTransactions);
-  const [alerts, setAlerts] = useState<Alert[]>(initialAlerts);
+  // Real Database Domain State (Zero Mock Data)
+  const [ponds, setPonds] = useState<Pond[]>([]);
+  const [logs, setLogs] = useState<PondLog[]>([]);
+  const [transactions, setTransactions] = useState<FinanceTransaction[]>([]);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [isLoadingData, setIsLoadingData] = useState<boolean>(true);
 
   // Selected Pond for detail view
   const [selectedPondDetailId, setSelectedPondDetailId] = useState<string | null>(null);
 
-  // Pond modal
+  // Modals state
   const [isPondModalOpen, setIsPondModalOpen] = useState(false);
   const [pondToEdit, setPondToEdit] = useState<Pond | null>(null);
 
-  // Daily log modal
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   const [logToEdit, setLogToEdit] = useState<PondLog | null>(null);
   const [logModalPondId, setLogModalPondId] = useState<string>('');
   const [logModalInitialType, setLogModalInitialType] =
     useState<LogType>('WATER_QUALITY');
 
-  // Finance modal
   const [isFinanceModalOpen, setIsFinanceModalOpen] = useState(false);
   const [financeToEdit, setFinanceToEdit] = useState<FinanceTransaction | null>(null);
   const [financeInitialType, setFinanceInitialType] = useState<'INCOME' | 'EXPENSE'>(
@@ -76,32 +68,86 @@ export const App: React.FC = () => {
     setTimeout(() => setNotification(null), 3500);
   };
 
-  // Alert handlers (Milestone 4)
-  const handleReviewAlert = (id: string) => {
-    setAlerts((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status: 'REVIEWED' as const } : a))
-    );
-    showToast('รับทราบการแจ้งเตือนแล้ว');
+  // Load real data from Neon PostgreSQL APIs
+  const loadFarmData = useCallback(async () => {
+    if (!user) return;
+    setIsLoadingData(true);
+    try {
+      const [pondsRes, logsRes, financeRes, alertsRes] = await Promise.all([
+        authFetch('/api/ponds'),
+        authFetch('/api/logs'),
+        authFetch('/api/finance'),
+        authFetch('/api/alerts'),
+      ]);
+
+      if (pondsRes.ok) {
+        const pondsData = await pondsRes.json();
+        setPonds(pondsData);
+      }
+      if (logsRes.ok) {
+        const logsData = await logsRes.json();
+        setLogs(logsData);
+      }
+      if (financeRes.ok) {
+        const financeData = await financeRes.json();
+        setTransactions(financeData);
+      }
+      if (alertsRes.ok) {
+        const alertsData = await alertsRes.json();
+        setAlerts(alertsData);
+      }
+    } catch (err) {
+      console.error('Failed to load farm data from server:', err);
+      showToast('เกิดข้อผิดพลาดในการโหลดข้อมูลฟาร์ม');
+    } finally {
+      setIsLoadingData(false);
+    }
+  }, [user, authFetch]);
+
+  useEffect(() => {
+    if (user) {
+      loadFarmData();
+    }
+  }, [user, loadFarmData]);
+
+  // Alert handlers with API persistence
+  const handleReviewAlert = async (id: string) => {
+    try {
+      const res = await authFetch(`/api/alerts/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'REVIEWED' }),
+      });
+      if (res.ok) {
+        setAlerts((prev) =>
+          prev.map((a) => (a.id === id ? { ...a, status: 'REVIEWED' as const } : a))
+        );
+        showToast('รับทราบการแจ้งเตือนแล้ว');
+      }
+    } catch {
+      showToast('ไม่สามารถอัปเดตการแจ้งเตือนได้');
+    }
   };
 
-  const handleResolveAlert = (id: string) => {
-    setAlerts((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status: 'RESOLVED' as const } : a))
-    );
-    showToast('ทำเครื่องหมายแก้ไขเรียบร้อย บ่อกลับสู่ภาวะปกติ');
+  const handleResolveAlert = async (id: string) => {
+    try {
+      const res = await authFetch(`/api/alerts/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'RESOLVED' }),
+      });
+      if (res.ok) {
+        setAlerts((prev) =>
+          prev.map((a) => (a.id === id ? { ...a, status: 'RESOLVED' as const } : a))
+        );
+        showToast('ทำเครื่องหมายแก้ไขเรียบร้อย บ่อกลับสู่ภาวะปกติ');
+      }
+    } catch {
+      showToast('ไม่สามารถอัปเดตการแจ้งเตือนได้');
+    }
   };
 
-  // Helper to get latest log for pond
-  const getLatestLogForPond = (pondId: string, currentLogs: PondLog[]) => {
-    const pondLogsSorted = currentLogs
-      .filter((l) => l.pondId === pondId)
-      .sort(
-        (a, b) => new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime()
-      );
-    return pondLogsSorted[0] || undefined;
-  };
-
-  // --- Pond CRUD ---
+  // --- Pond CRUD with API ---
   const handleOpenCreatePond = () => {
     setPondToEdit(null);
     setIsPondModalOpen(true);
@@ -112,7 +158,7 @@ export const App: React.FC = () => {
     setIsPondModalOpen(true);
   };
 
-  const handleSavePond = (pondData: {
+  const handleSavePond = async (pondData: {
     id?: string;
     name: string;
     area?: number;
@@ -122,41 +168,36 @@ export const App: React.FC = () => {
     status: PondStatus;
     notes?: string;
   }) => {
-    if (pondData.id) {
-      setPonds((prev) =>
-        prev.map((p) =>
-          p.id === pondData.id
-            ? {
-                ...p,
-                name: pondData.name,
-                area: pondData.area,
-                waterSource: pondData.waterSource,
-                species: pondData.species,
-                farmingMethod: pondData.farmingMethod,
-                status: pondData.status,
-                notes: pondData.notes,
-              }
-            : p
-        )
-      );
-      showToast(`แก้ไขข้อมูล "${pondData.name}" เรียบร้อยแล้ว`);
-    } else {
-      const newPond: Pond = {
-        id: `pond-${Date.now()}`,
-        farmId: farm.id,
-        name: pondData.name,
-        area: pondData.area,
-        waterSource: pondData.waterSource,
-        species: pondData.species,
-        farmingMethod: pondData.farmingMethod,
-        status: pondData.status,
-        notes: pondData.notes,
-        latestLog: undefined,
-      };
-      setPonds((prev) => [...prev, newPond]);
-      showToast(`สร้างบ่อใหม่ "${pondData.name}" สำเร็จแล้ว`);
+    try {
+      const isEdit = Boolean(pondData.id);
+      const url = isEdit ? `/api/ponds/${pondData.id}` : '/api/ponds';
+      const method = isEdit ? 'PUT' : 'POST';
+
+      const res = await authFetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...pondData,
+          farmId: farm?.id,
+        }),
+      });
+
+      if (res.ok) {
+        await loadFarmData();
+        showToast(
+          isEdit
+            ? `แก้ไขข้อมูล "${pondData.name}" เรียบร้อยแล้ว`
+            : `สร้างบ่อใหม่ "${pondData.name}" สำเร็จแล้ว`
+        );
+        setIsPondModalOpen(false);
+      } else {
+        const error = await res.json();
+        showToast(error.error || 'เกิดข้อผิดพลาดในการบันทึกบ่อ');
+      }
+    } catch (err) {
+      console.error('Error saving pond:', err);
+      showToast('เชื่อมต่อเซิร์ฟเวอร์ล้มเหลว');
     }
-    setIsPondModalOpen(false);
   };
 
   const handleDeletePond = (pondId: string) => {
@@ -165,20 +206,28 @@ export const App: React.FC = () => {
       isOpen: true,
       title: 'ยืนยันการลบบ่อเลี้ยง',
       message: `คุณแน่ใจหรือไม่ว่าต้องการลบ "${targetPond?.name || 'บ่อนี้'}"? ข้อมูลบันทึกและประวัติทั้งหมดของบ่อนี้จะถูกลบไปด้วย`,
-      onConfirm: () => {
-        setPonds((prev) => prev.filter((p) => p.id !== pondId));
-        setLogs((prev) => prev.filter((l) => l.pondId !== pondId));
-        if (selectedPondDetailId === pondId) {
-          setSelectedPondDetailId(null);
+      onConfirm: async () => {
+        try {
+          const res = await authFetch(`/api/ponds/${pondId}`, { method: 'DELETE' });
+          if (res.ok) {
+            await loadFarmData();
+            if (selectedPondDetailId === pondId) {
+              setSelectedPondDetailId(null);
+            }
+            setIsPondModalOpen(false);
+            setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
+            showToast('ลบบ่อเรียบร้อยแล้ว');
+          } else {
+            showToast('ไม่สามารถลบบ่อได้');
+          }
+        } catch {
+          showToast('เชื่อมต่อเซิร์ฟเวอร์ล้มเหลว');
         }
-        setIsPondModalOpen(false);
-        setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
-        showToast('ลบบ่อเรียบร้อยแล้ว');
       },
     });
   };
 
-  // --- Daily Log CRUD ---
+  // --- Daily Log CRUD with API ---
   const handleOpenAddLog = (pondId?: string, initialType: LogType = 'WATER_QUALITY') => {
     setLogToEdit(null);
     setLogModalPondId(pondId || ponds[0]?.id || '');
@@ -193,7 +242,7 @@ export const App: React.FC = () => {
     setIsLogModalOpen(true);
   };
 
-  const handleSaveLog = (logData: {
+  const handleSaveLog = async (logData: {
     id?: string;
     pondId: string;
     type: LogType;
@@ -211,82 +260,27 @@ export const App: React.FC = () => {
     harvestPrice?: number | null;
     notes?: string | null;
   }) => {
-    let updatedLogs: PondLog[];
+    try {
+      const isEdit = Boolean(logData.id);
+      const url = isEdit ? `/api/logs/${logData.id}` : '/api/logs';
+      const method = isEdit ? 'PUT' : 'POST';
 
-    if (logData.id) {
-      updatedLogs = logs.map((l) =>
-        l.id === logData.id
-          ? {
-              ...l,
-              pondId: logData.pondId,
-              type: logData.type,
-              temperature: logData.temperature,
-              ph: logData.ph,
-              salinity: logData.salinity,
-              dissolvedOxygen: logData.dissolvedOxygen,
-              exchangeType: logData.exchangeType,
-              exchangeVolume: logData.exchangeVolume,
-              observation: logData.observation,
-              mortalityCount: logData.mortalityCount,
-              harvestQuantity: logData.harvestQuantity,
-              harvestUnit: logData.harvestUnit,
-              harvestPrice: logData.harvestPrice,
-              notes: logData.notes,
-            }
-          : l
-      );
-      showToast('แก้ไขบันทึกข้อผิดพลาดเรียบร้อยแล้ว');
-    } else {
-      const newLog: PondLog = {
-        id: `log-${Date.now()}`,
-        pondId: logData.pondId,
-        type: logData.type,
-        recordedAt: logData.recordedAt || new Date().toISOString(),
-        temperature: logData.temperature,
-        ph: logData.ph,
-        salinity: logData.salinity,
-        dissolvedOxygen: logData.dissolvedOxygen,
-        exchangeType: logData.exchangeType,
-        exchangeVolume: logData.exchangeVolume,
-        observation: logData.observation,
-        mortalityCount: logData.mortalityCount,
-        harvestQuantity: logData.harvestQuantity,
-        harvestUnit: logData.harvestUnit,
-        harvestPrice: logData.harvestPrice,
-        notes: logData.notes,
-      };
-      updatedLogs = [newLog, ...logs];
-      showToast('เพิ่มบันทึกข้อมูลเรียบร้อยแล้ว');
-    }
+      const res = await authFetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(logData),
+      });
 
-    setLogs(updatedLogs);
-
-    // Sync latestLog on pond
-    setPonds((prev) =>
-      prev.map((p) => {
-        if (p.id === logData.pondId) {
-          return {
-            ...p,
-            latestLog: getLatestLogForPond(p.id, updatedLogs),
-          };
-        }
-        return p;
-      })
-    );
-
-    // Milestone 4: Trigger documented alert evaluation against new record
-    const newlyTriggeredAlerts = evaluateFarmAlerts(ponds, updatedLogs, alerts);
-    if (newlyTriggeredAlerts.length > 0) {
-      setAlerts((prev) => [...newlyTriggeredAlerts, ...prev]);
-      showToast(
-        `บันทึกข้อมูลแล้ว (ตรวจพบการแจ้งเตือน ${newlyTriggeredAlerts.length} รายการ)`
-      );
-    } else {
-      showToast(
-        logData.id
-          ? 'แก้ไขบันทึกข้อผิดพลาดเรียบร้อยแล้ว'
-          : 'เพิ่มบันทึกข้อมูลเรียบร้อยแล้ว'
-      );
+      if (res.ok) {
+        await loadFarmData();
+        showToast(isEdit ? 'แก้ไขบันทึกเรียบร้อยแล้ว' : 'เพิ่มบันทึกข้อมูลเรียบร้อยแล้ว');
+        setIsLogModalOpen(false);
+      } else {
+        const error = await res.json();
+        showToast(error.error || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+      }
+    } catch {
+      showToast('เชื่อมต่อเซิร์ฟเวอร์ล้มเหลว');
     }
   };
 
@@ -295,32 +289,24 @@ export const App: React.FC = () => {
       isOpen: true,
       title: 'ยืนยันการลบบันทึก',
       message: 'คุณแน่ใจหรือไม่ว่าต้องการลบบันทึกรายการนี้?',
-      onConfirm: () => {
-        const targetLog = logs.find((l) => l.id === logId);
-        const updatedLogs = logs.filter((l) => l.id !== logId);
-        setLogs(updatedLogs);
-
-        if (targetLog) {
-          setPonds((prev) =>
-            prev.map((p) => {
-              if (p.id === targetLog.pondId) {
-                return {
-                  ...p,
-                  latestLog: getLatestLogForPond(p.id, updatedLogs),
-                };
-              }
-              return p;
-            })
-          );
+      onConfirm: async () => {
+        try {
+          const res = await authFetch(`/api/logs/${logId}`, { method: 'DELETE' });
+          if (res.ok) {
+            await loadFarmData();
+            setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
+            showToast('ลบบันทึกเรียบร้อยแล้ว');
+          } else {
+            showToast('ไม่สามารถลบบันทึกได้');
+          }
+        } catch {
+          showToast('เชื่อมต่อเซิร์ฟเวอร์ล้มเหลว');
         }
-
-        setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
-        showToast('ลบบันทึกเรียบร้อยแล้ว');
       },
     });
   };
 
-  // --- Finance CRUD ---
+  // --- Finance CRUD with API ---
   const handleOpenAddFinance = (type: 'INCOME' | 'EXPENSE' = 'INCOME') => {
     setFinanceToEdit(null);
     setFinanceInitialType(type);
@@ -333,7 +319,7 @@ export const App: React.FC = () => {
     setIsFinanceModalOpen(true);
   };
 
-  const handleSaveFinance = (data: {
+  const handleSaveFinance = async (data: {
     id?: string;
     type: 'INCOME' | 'EXPENSE';
     category: string;
@@ -342,44 +328,35 @@ export const App: React.FC = () => {
     pondId?: string;
     note?: string;
   }) => {
-    const targetPond = ponds.find((p) => p.id === data.pondId);
+    try {
+      const isEdit = Boolean(data.id);
+      const url = isEdit ? `/api/finance/${data.id}` : '/api/finance';
+      const method = isEdit ? 'PUT' : 'POST';
 
-    if (data.id) {
-      setTransactions((prev) =>
-        prev.map((t) =>
-          t.id === data.id
-            ? {
-                ...t,
-                type: data.type,
-                category: data.category,
-                amount: data.amount,
-                occurredAt: data.occurredAt || t.occurredAt,
-                pondId: data.pondId,
-                pondName: targetPond ? targetPond.name.split(' ')[0] : undefined,
-                note: data.note,
-              }
-            : t
-        )
-      );
-      showToast('แก้ไขรายการการเงินเรียบร้อยแล้ว');
-    } else {
-      const newTx: FinanceTransaction = {
-        id: `tx-${Date.now()}`,
-        farmId: farm.id,
-        pondId: data.pondId,
-        pondName: targetPond ? targetPond.name.split(' ')[0] : undefined,
-        type: data.type,
-        category: data.category,
-        amount: data.amount,
-        occurredAt: data.occurredAt || new Date().toISOString(),
-        note: data.note,
-      };
-      setTransactions((prev) => [newTx, ...prev]);
-      showToast(
-        `บันทึก${data.type === 'INCOME' ? 'รายรับ' : 'รายจ่าย'} ${data.amount.toLocaleString('th-TH')} บาท เรียบร้อยแล้ว`
-      );
+      const res = await authFetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...data,
+          farmId: farm?.id,
+        }),
+      });
+
+      if (res.ok) {
+        await loadFarmData();
+        showToast(
+          isEdit
+            ? 'แก้ไขรายการการเงินเรียบร้อยแล้ว'
+            : `บันทึก${data.type === 'INCOME' ? 'รายรับ' : 'รายจ่าย'} ${data.amount.toLocaleString('th-TH')} บาท เรียบร้อยแล้ว`
+        );
+        setIsFinanceModalOpen(false);
+      } else {
+        const error = await res.json();
+        showToast(error.error || 'เกิดข้อผิดพลาดในการบันทึกการเงิน');
+      }
+    } catch {
+      showToast('เชื่อมต่อเซิร์ฟเวอร์ล้มเหลว');
     }
-    setIsFinanceModalOpen(false);
   };
 
   const handleDeleteFinance = (txId: string) => {
@@ -387,16 +364,34 @@ export const App: React.FC = () => {
       isOpen: true,
       title: 'ยืนยันการลบรายการการเงิน',
       message: 'คุณแน่ใจหรือไม่ว่าต้องการลบรายการนี้?',
-      onConfirm: () => {
-        setTransactions((prev) => prev.filter((t) => t.id !== txId));
-        setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
-        showToast('ลบรายการการเงินเรียบร้อยแล้ว');
+      onConfirm: async () => {
+        try {
+          const res = await authFetch(`/api/finance/${txId}`, { method: 'DELETE' });
+          if (res.ok) {
+            await loadFarmData();
+            setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
+            showToast('ลบรายการการเงินเรียบร้อยแล้ว');
+          } else {
+            showToast('ไม่สามารถลบรายการได้');
+          }
+        } catch {
+          showToast('เชื่อมต่อเซิร์ฟเวอร์ล้มเหลว');
+        }
       },
     });
   };
 
   // Quick Action routing from Home Dashboard
   const handleQuickActionClick = (action: string) => {
+    if (
+      ponds.length === 0 &&
+      (action === 'water' || action === 'observation' || action === 'exchange')
+    ) {
+      handleOpenCreatePond();
+      showToast('กรุณาสร้างบ่อเลี้ยงแรกก่อนทำการบันทึกข้อมูล');
+      return;
+    }
+
     if (action === 'water') {
       handleOpenAddLog(undefined, 'WATER_QUALITY');
     } else if (action === 'observation') {
@@ -408,19 +403,47 @@ export const App: React.FC = () => {
     }
   };
 
+  // --- Render Authentication Wall ---
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 text-center">
+        <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center gap-4 max-w-xs w-full">
+          <div className="w-12 h-12 bg-sky-50 text-sky-700 rounded-2xl flex items-center justify-center animate-spin">
+            <Loader2 className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="font-bold text-slate-800 text-lg font-prompt">บ่อดี (BODI)</h3>
+            <p className="text-xs text-slate-500 mt-1">กำลังโหลดข้อมูลฟาร์มของคุณ...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Not logged in -> Show Google Authentication Page
+  if (!user) {
+    return <LoginPage />;
+  }
+
   const financeSummary = calculateFinanceSummary(transactions);
   const activePondForDetail = ponds.find((p) => p.id === selectedPondDetailId);
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-thai selection:bg-sky-200">
-      {/* Top Header with navigation tabs */}
+      {/* Top Header with navigation tabs & User Session */}
       <Header
-        farmName={farm.name}
+        farmName={farm?.name || `ฟาร์มของ ${user.name}`}
         activeTab={activeTab}
         onTabChange={(tab) => {
           setActiveTab(tab);
           if (tab !== 'PONDS') setSelectedPondDetailId(null);
         }}
+        user={{
+          name: user.name,
+          email: user.email,
+          avatarUrl: user.avatarUrl,
+        }}
+        onLogout={logout}
       />
 
       {/* Main Content Area */}
@@ -446,57 +469,89 @@ export const App: React.FC = () => {
             {/* 1. Large Quick Actions */}
             <QuickActions onActionClick={handleQuickActionClick} />
 
-            {/* 2. Monthly Finance Summary Card (Clickable to switch to Finance tab) */}
+            {/* 2. Monthly Finance Summary Card */}
             <div
-              className="cursor-pointer group"
               onClick={() => setActiveTab('FINANCE')}
-              title="กดเพื่อดูรายละเอียดบัญชีฟาร์ม"
+              className="cursor-pointer transition-transform active:scale-[0.99]"
             >
               <FinanceSummaryCard summary={financeSummary} />
             </div>
 
-            {/* 3. Recent Observations & Mortality Card */}
+            {/* 3. Recent Mortality & Observations Card */}
             <RecentObservationsCard
               logs={logs}
               ponds={ponds}
               onAddObservation={() => handleOpenAddLog(undefined, 'ANIMAL_OBSERVATION')}
             />
 
-            {/* 4. Latest Water Reading per Pond */}
-            <section className="mb-6">
+            {/* 4. Active Ponds Status List or Empty State */}
+            <div className="mt-6 mb-8">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <Fish className="w-5 h-5 text-sky-700" />
-                  <h2 className="text-lg font-bold text-slate-800">
-                    สภาพน้ำล่าสุดของแต่ละบ่อ ({ponds.length} บ่อ)
-                  </h2>
+                  <h3 className="font-bold text-slate-900 text-base sm:text-lg">
+                    สถานะบ่อเลี้ยงทั้งหมด ({ponds.length} บ่อ)
+                  </h3>
                 </div>
                 <button
-                  onClick={() => setActiveTab('PONDS')}
                   type="button"
-                  className="text-xs font-semibold text-sky-700 hover:text-sky-800 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                  onClick={handleOpenCreatePond}
+                  className="flex items-center gap-1 text-xs font-bold text-sky-700 hover:text-sky-800 bg-sky-50 hover:bg-sky-100 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
                 >
-                  ดูทั้งหมด →
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>เพิ่มบ่อ</span>
                 </button>
               </div>
 
-              <div className="space-y-3">
-                {ponds.map((pond) => (
-                  <PondCard
-                    key={pond.id}
-                    pond={pond}
-                    onRecordClick={(pondId) => handleOpenAddLog(pondId, 'WATER_QUALITY')}
-                    onViewDetail={(pondId) => {
-                      setSelectedPondDetailId(pondId);
-                      setActiveTab('PONDS');
-                    }}
-                    onEditPond={handleOpenEditPond}
-                  />
-                ))}
-              </div>
-            </section>
+              {isLoadingData ? (
+                <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-500 text-sm flex items-center justify-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-sky-600" />
+                  <span>กำลังโหลดข้อมูลบ่อ...</span>
+                </div>
+              ) : ponds.length === 0 ? (
+                <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 p-8 text-center space-y-3">
+                  <div className="w-12 h-12 bg-sky-50 text-sky-600 rounded-2xl flex items-center justify-center mx-auto">
+                    <Sparkles className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-800 text-base">
+                      ยินดีต้อนรับสู่ฟาร์มของคุณ!
+                    </h4>
+                    <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-sm mx-auto">
+                      ยังไม่มีบ่อเลี้ยงในระบบ เริ่มต้นบันทึกค่าน้ำและประวัติบ่อได้ง่ายๆ
+                      เพียงกดปุ่มด้านล่าง
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleOpenCreatePond}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-sky-700 hover:bg-sky-800 active:bg-sky-900 text-white font-bold text-xs sm:text-sm rounded-xl shadow-xs transition-colors cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>สร้างบ่อเลี้ยงแรก</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {ponds.map((pond) => (
+                    <PondCard
+                      key={pond.id}
+                      pond={pond}
+                      onRecordClick={(pondId) =>
+                        handleOpenAddLog(pondId, 'WATER_QUALITY')
+                      }
+                      onViewDetail={(pondId) => {
+                        setSelectedPondDetailId(pondId);
+                        setActiveTab('PONDS');
+                      }}
+                      onEditPond={handleOpenEditPond}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
 
-            {/* 5. System Foundation Card */}
+            {/* System Philosophy Card */}
             <SystemFoundationCard />
           </div>
         )}
@@ -533,7 +588,12 @@ export const App: React.FC = () => {
                   </button>
                 </div>
 
-                {ponds.length === 0 ? (
+                {isLoadingData ? (
+                  <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-500 text-sm flex items-center justify-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-sky-600" />
+                    <span>กำลังโหลดข้อมูลบ่อ...</span>
+                  </div>
+                ) : ponds.length === 0 ? (
                   <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 p-8 text-center">
                     <Fish className="w-10 h-10 text-slate-300 mx-auto mb-2" />
                     <h4 className="font-bold text-slate-700 text-base">
@@ -624,11 +684,11 @@ export const App: React.FC = () => {
       <footer className="bg-slate-100 border-t border-slate-200 py-6 text-center text-xs text-slate-500 mt-auto">
         <div className="max-w-4xl mx-auto px-4 space-y-1">
           <p className="font-semibold text-slate-700">
-            บ่อดี (BODI) — Lean Smart Aquaculture MVP
+            บ่อดี (BODI) — Lean Smart Aquaculture Web App
           </p>
           <p>สโลแกน: รู้ทันบ่อ ดูแลง่าย ขายได้ราคา | เขตเวลา: Asia/Bangkok</p>
           <p className="text-[11px] text-slate-400">
-            สร้างขึ้นเพื่อฟาร์มกุ้ง ปู และสัตว์น้ำครอบครัว แบบธรรมชาติและกึ่งธรรมชาติ
+            ระบบจัดการฟาร์มกุ้ง ปู และสัตว์น้ำครอบครัว เชื่อมต่อฐานข้อมูลคลาวด์ปลอดภัย
           </p>
         </div>
       </footer>

@@ -1,15 +1,22 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import prisma from '../_lib/prisma.js';
 import { PondLogInputSchema } from '../_lib/validators.js';
+import { getAuthContext } from '../_lib/auth.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const method = req.method;
+  const auth = await getAuthContext(req);
 
   if (method === 'GET') {
     try {
       const { pondId, limit } = req.query;
-      const whereClause = pondId ? { pondId: String(pondId) } : {};
-      const takeCount = limit ? parseInt(String(limit), 10) : 50;
+      const whereClause: Record<string, unknown> = {};
+      if (pondId) {
+        whereClause.pondId = String(pondId);
+      } else if (auth?.farm.id) {
+        whereClause.pond = { farmId: auth.farm.id };
+      }
+      const takeCount = limit ? parseInt(String(limit), 10) : 100;
 
       const logs = await prisma.pondLog.findMany({
         where: whereClause,

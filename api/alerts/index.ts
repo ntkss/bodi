@@ -1,8 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import prisma from '../_lib/prisma.js';
+import { getAuthContext } from '../_lib/auth.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const method = req.method;
+  const auth = await getAuthContext(req);
 
   if (method === 'GET') {
     try {
@@ -11,6 +13,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       if (status) whereClause.status = String(status);
       if (pondId) whereClause.pondId = String(pondId);
+      if (auth?.farm.id) {
+        whereClause.pond = { farmId: auth.farm.id };
+      }
 
       const alerts = await prisma.alert.findMany({
         where: whereClause,

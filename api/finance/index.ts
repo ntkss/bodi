@@ -1,17 +1,20 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import prisma from '../_lib/prisma.js';
 import { FinanceTransactionInputSchema } from '../_lib/validators.js';
+import { getAuthContext } from '../_lib/auth.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const method = req.method;
+  const auth = await getAuthContext(req);
 
   if (method === 'GET') {
     try {
       const { farmId, pondId, type, month } = req.query;
 
       // Build filter
+      const targetFarmId = (farmId as string) || auth?.farm.id;
       const whereClause: Record<string, unknown> = {};
-      if (farmId) whereClause.farmId = String(farmId);
+      if (targetFarmId) whereClause.farmId = targetFarmId;
       if (pondId) whereClause.pondId = String(pondId);
       if (type) whereClause.type = String(type);
 
@@ -64,9 +67,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       const data = parseResult.data;
+      const farmId = data.farmId || auth?.farm.id;
+      if (!farmId) {
+        return res.status(400).json({ error: 'ไม่พบข้อมูล Farm ID' });
+      }
+
       const newTx = await prisma.financeTransaction.create({
         data: {
-          farmId: data.farmId,
+          farmId,
           pondId: data.pondId || null,
           type: data.type,
           category: data.category,

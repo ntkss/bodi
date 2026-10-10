@@ -1,5 +1,13 @@
 import React from 'react';
-import { Waves, Calendar, LayoutDashboard, Fish, Wallet } from 'lucide-react';
+import {
+  Waves,
+  Calendar,
+  LayoutDashboard,
+  Fish,
+  Wallet,
+  LogOut,
+  User as UserIcon,
+} from 'lucide-react';
 import { formatThaiDate } from '../lib/date';
 
 export type AppTab = 'DASHBOARD' | 'PONDS' | 'FINANCE';
@@ -8,9 +16,17 @@ interface HeaderProps {
   farmName: string;
   activeTab: AppTab;
   onTabChange: (tab: AppTab) => void;
+  user?: { name: string; email: string; avatarUrl?: string | null } | null;
+  onLogout?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ farmName, activeTab, onTabChange }) => {
+export const Header: React.FC<HeaderProps> = ({
+  farmName,
+  activeTab,
+  onTabChange,
+  user,
+  onLogout,
+}) => {
   const todayStr = formatThaiDate(new Date());
 
   return (
@@ -24,7 +40,7 @@ export const Header: React.FC<HeaderProps> = ({ farmName, activeTab, onTabChange
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white leading-none">
+                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white leading-none font-prompt">
                   บ่อดี
                 </h1>
                 <span className="text-xs font-semibold uppercase tracking-wider bg-sky-800 text-sky-200 px-2 py-0.5 rounded border border-sky-600">
@@ -37,10 +53,10 @@ export const Header: React.FC<HeaderProps> = ({ farmName, activeTab, onTabChange
             </div>
           </div>
 
-          {/* Farm & Date Context */}
-          <div className="flex items-center justify-between sm:justify-end gap-3 text-xs sm:text-sm bg-sky-800/80 sm:bg-transparent p-2 sm:p-0 rounded-lg">
+          {/* Farm & User Context */}
+          <div className="flex items-center justify-between sm:justify-end gap-3 text-xs sm:text-sm bg-sky-800/80 sm:bg-transparent p-2 sm:p-0 rounded-xl">
             <div className="text-left sm:text-right">
-              <span className="block font-medium text-white truncate max-w-[200px] sm:max-w-xs">
+              <span className="block font-semibold text-white truncate max-w-[180px] sm:max-w-xs">
                 {farmName}
               </span>
               <div className="flex items-center sm:justify-end gap-1.5 text-sky-200 text-xs">
@@ -48,6 +64,32 @@ export const Header: React.FC<HeaderProps> = ({ farmName, activeTab, onTabChange
                 <span>{todayStr}</span>
               </div>
             </div>
+
+            {user && (
+              <div className="flex items-center gap-2 pl-2 border-l border-sky-600/60 sm:border-sky-600/40">
+                {user.avatarUrl ? (
+                  <img
+                    src={user.avatarUrl}
+                    alt={user.name}
+                    className="w-8 h-8 rounded-full border border-white/40 object-cover"
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-sky-600 flex items-center justify-center border border-white/40">
+                    <UserIcon className="w-4 h-4 text-white" />
+                  </div>
+                )}
+                {onLogout && (
+                  <button
+                    type="button"
+                    onClick={onLogout}
+                    title="ออกจากระบบ"
+                    className="p-1.5 rounded-lg text-sky-200 hover:text-white hover:bg-sky-600/60 transition-colors cursor-pointer"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
