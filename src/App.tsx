@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Header, AppTab } from './components/Header';
 import { AlertBanner } from './components/AlertBanner';
-import { SystemFoundationCard } from './components/SystemFoundationCard';
 import { QuickActions } from './components/QuickActions';
 import { FinanceSummaryCard } from './components/FinanceSummaryCard';
 import { RecentObservationsCard } from './components/RecentObservationsCard';
@@ -550,9 +549,6 @@ export const App: React.FC = () => {
                 </div>
               )}
             </div>
-
-            {/* System Philosophy Card */}
-            <SystemFoundationCard />
           </div>
         )}
 
