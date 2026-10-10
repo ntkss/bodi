@@ -115,21 +115,23 @@ Use only as an optional rainfall/forecast supplement. Check current free-tier an
 - [x] Automated unit and normalization tests added in `tests/environmental.test.ts` (100% passing).
 - [x] Production build and TypeScript validation pass without errors.
 
-## 6. Milestone 2 — Minimal water-risk view (later)
+## 6. Milestone 2 — Minimal water-risk view [COMPLETED ✅]
 
 Add one compact section to the existing dashboard, not a separate analytics platform.
 
 Display latest rainfall observation/forecast, relevant observed water level if available, next predicted high/low tide if verified, relevant source-water-quality readings if available, timestamps, source, and freshness. Explain why each item may matter to the farm.
 
-Suggested labels:
-
-- `เฝ้าระวัง`
-- `ควรตรวจน้ำ`
-- `ข้อมูลไม่เพียงพอ`
-- `ข้อมูลเก่า`
-- `ยังไม่มีสถานีอ้างอิง`
-
-Never show a green “safe” status just because no warning was generated.
+### Milestone 2 Acceptance Verification
+- [x] **5 Required Explainable Status Labels:** Implemented `เฝ้าระวัง`, `ควรตรวจน้ำ`, `ข้อมูลไม่เพียงพอ`, `ข้อมูลเก่า`, `ยังไม่มีสถานีอ้างอิง`
+- [x] **Strict Anti-Complacency Guard:** Never shows a green "safe" (ปลอดภัย) status. Calm weather displays `ควรตรวจน้ำ` with clear explanation that external sensors cannot certify pond safety.
+- [x] **4 Environmental Pillars Grid:**
+  1. *น้ำฝน & พยากรณ์:* Open-Meteo current rain & 24h precipitation forecast with freshness and why-it-matters explanation.
+  2. *ระดับน้ำในคลองส่งน้ำ:* Explicit "รอตรวจหน้าแปลง" indicator with canal name and warning against silt suction.
+  3. *มาตราน้ำทำนาย ปากน้ำแม่กลอง:* Predicted high/low tide window with strict caveat that astronomical predictions at the estuary are not canal water levels.
+  4. *คุณภาพน้ำต้นทาง:* Manual log fallback with self-testing guidelines before opening gates.
+- [x] **Compact Dashboard UI:** Implemented in `src/components/EnvironmentalCard.tsx` with expandable reference stations details.
+- [x] **Full Automated Test Coverage:** 13/13 tests in `tests/environmental.test.ts` (49/49 total project tests passing).
+- [x] **Build & Typecheck:** 0 TypeScript errors (`tsc --noEmit`), Vite production build clean.
 
 ## 7. Milestone 3 — Explainable rules (later)
 

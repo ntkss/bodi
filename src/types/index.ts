@@ -25,6 +25,43 @@ export interface Farm {
 export type VerificationStatus = 'VERIFIED' | 'CANDIDATE' | 'UNAVAILABLE' | 'BLOCKED';
 export type FreshnessStatus = 'FRESH' | 'STALE' | 'NO_DATA';
 
+export type RiskStatusLabel =
+  | 'เฝ้าระวัง'
+  | 'ควรตรวจน้ำ'
+  | 'ข้อมูลไม่เพียงพอ'
+  | 'ข้อมูลเก่า'
+  | 'ยังไม่มีสถานีอ้างอิง';
+
+export interface TideWindowInfo {
+  stationName: string;
+  stationCode: string;
+  source: string;
+  isAstronomicalPrediction: boolean;
+  dateStr: string;
+  nextHighTide: {
+    time: string;
+    levelMeters: number;
+    description: string;
+  };
+  nextLowTide: {
+    time: string;
+    levelMeters: number;
+    description: string;
+  };
+  caveat: string;
+}
+
+export interface WaterRiskAssessment {
+  statusLabel: RiskStatusLabel;
+  badgeTone: 'amber' | 'sky' | 'slate';
+  summaryText: string;
+  reasons: string[];
+  recommendedActions: string[];
+  rainfallCurrent?: number;
+  rainfallForecast24h?: number;
+  evaluatedAt: string;
+}
+
 export interface ReferenceStation {
   id: string;
   farmId?: string | null;

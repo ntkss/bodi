@@ -83,12 +83,60 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
     });
 
+    // Query updated stations for farm
+    const updatedStations = await prisma.referenceStation.findMany({
+      where: {
+        OR: [{ farmId: farmId }, { farmId: null }],
+      },
+      include: {
+        readings: {
+          orderBy: { observedAt: 'desc' },
+          take: 10,
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const now = new Date();
+    const formatted = updatedStations.map((st) => {
+      const latestReading = st.readings[0] || null;
+      let freshness: 'FRESH' | 'STALE' | 'NO_DATA' = 'NO_DATA';
+
+      if (latestReading) {
+        const ageHours =
+          (now.getTime() - new Date(latestReading.observedAt).getTime()) /
+          (1000 * 60 * 60);
+        freshness = ageHours <= 3 ? 'FRESH' : 'STALE';
+      }
+
+      return {
+        ...st,
+        latestReading,
+        freshness,
+      };
+    });
+
+    const { evaluateWaterRiskSummary, predictPakNamMaeKlongTide } = await import(
+      '../_lib/environmental.js'
+    );
+
+    const riskAssessment = evaluateWaterRiskSummary({
+      stations: formatted,
+      farm,
+      referenceTime: now,
+    });
+
+    const tideWindow = predictPakNamMaeKlongTide(now);
+
     return res.status(200).json({
       success: true,
       stationId: station.id,
       stationName: station.name,
       readingsCount: savedReadings.length,
       readings: savedReadings,
+      stations: formatted,
+      riskAssessment,
+      tideWindow,
       fetchedAt: new Date().toISOString(),
     });
   } catch (err) {

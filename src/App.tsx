@@ -30,6 +30,8 @@ import {
   FinanceTransaction,
   Alert,
   ReferenceStation,
+  WaterRiskAssessment,
+  TideWindowInfo,
 } from './types';
 import { Fish, Plus, Check, Loader2, Sparkles } from 'lucide-react';
 
@@ -50,6 +52,9 @@ export const App: React.FC = () => {
   const [transactions, setTransactions] = useState<FinanceTransaction[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [stations, setStations] = useState<ReferenceStation[]>([]);
+  const [waterRiskAssessment, setWaterRiskAssessment] =
+    useState<WaterRiskAssessment | null>(null);
+  const [tideWindow, setTideWindow] = useState<TideWindowInfo | null>(null);
   const [isLoadingData, setIsLoadingData] = useState<boolean>(true);
   const [isPushEnabled, setIsPushEnabled] = useState<boolean>(false);
   const [isLocationModalOpen, setIsLocationModalOpen] = useState<boolean>(false);
@@ -125,7 +130,16 @@ export const App: React.FC = () => {
       }
       if (stationsRes.ok) {
         const stationsData = await stationsRes.json();
-        setStations(stationsData);
+        const stationList = Array.isArray(stationsData)
+          ? stationsData
+          : stationsData.stations || [];
+        setStations(stationList);
+        if (stationsData.riskAssessment) {
+          setWaterRiskAssessment(stationsData.riskAssessment);
+        }
+        if (stationsData.tideWindow) {
+          setTideWindow(stationsData.tideWindow);
+        }
       }
     } catch (err) {
       console.error('Failed to load farm data from server:', err);
@@ -474,6 +488,15 @@ export const App: React.FC = () => {
 
       if (res.ok) {
         const data = await res.json();
+        if (data.stations) {
+          setStations(data.stations);
+        }
+        if (data.riskAssessment) {
+          setWaterRiskAssessment(data.riskAssessment);
+        }
+        if (data.tideWindow) {
+          setTideWindow(data.tideWindow);
+        }
         await loadFarmData();
         showToast(`ดึงข้อมูลสดสำเร็จ (${data.readingsCount} ค่าตรวจวัด)`);
       } else {
@@ -592,10 +615,12 @@ export const App: React.FC = () => {
               onAddObservation={() => handleOpenAddLog(undefined, 'ANIMAL_OBSERVATION')}
             />
 
-            {/* 4. Environmental Reference Stations Card (Milestone 1) */}
+            {/* 4. Environmental Minimal Water-Risk View (Milestone 2) */}
             <EnvironmentalCard
               stations={stations}
               farm={farm}
+              riskAssessment={waterRiskAssessment}
+              tideWindow={tideWindow}
               onOpenLocationModal={() => setIsLocationModalOpen(true)}
               onSyncVerifiedSource={handleSyncEnvironmental}
               isSyncing={isSyncingEnvironmental}

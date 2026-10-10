@@ -85,7 +85,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         };
       });
 
-      return res.status(200).json(formatted);
+      // Farm context for risk assessment
+      const farm = await prisma.farm.findUnique({
+        where: { id: farmId },
+        select: {
+          waterSourceCanal: true,
+          latitude: true,
+          longitude: true,
+        },
+      });
+
+      const { evaluateWaterRiskSummary, predictPakNamMaeKlongTide } = await import(
+        '../_lib/environmental.js'
+      );
+
+      const riskAssessment = evaluateWaterRiskSummary({
+        stations: formatted,
+        farm,
+        referenceTime: now,
+      });
+
+      const tideWindow = predictPakNamMaeKlongTide(now);
+
+      if (req.query.format === 'array') {
+        return res.status(200).json(formatted);
+      }
+
+      return res.status(200).json({
+        stations: formatted,
+        riskAssessment,
+        tideWindow,
+      });
     } catch (err) {
       console.error('Error fetching environmental reference stations:', err);
       return res
