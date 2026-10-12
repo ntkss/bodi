@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, MapPin, Navigation, Save, Loader2, Info } from 'lucide-react';
+import { Navigation, Save, Loader2, Info } from 'lucide-react';
 import { getCurrentCoordinates } from '../lib/location';
 import { FarmProfile } from '../context/AuthContext';
+import { BottomSheet } from './BottomSheet';
 
 interface FarmLocationModalProps {
   isOpen: boolean;
@@ -92,34 +93,13 @@ export const FarmLocationModal: React.FC<FarmLocationModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
-      <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200">
-        {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-slate-100 px-6 py-4 flex items-center justify-between z-10">
-          <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center">
-              <MapPin className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="font-bold text-slate-900 text-base font-prompt">
-                ที่ตั้งฟาร์มและข้อมูลทางน้ำธรรมชาติ
-              </h3>
-              <p className="text-xs text-slate-500">
-                กำหนดพิกัดและคลองเชื่อมโยงเพื่อจับคู่สถานีอ้างอิงสภาพแวดล้อม
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+    <BottomSheet
+      isOpen={isOpen}
+      onClose={onClose}
+      title="ที่ตั้งฟาร์มและข้อมูลทางน้ำธรรมชาติ"
+      subtitle="กำหนดพิกัดและคลองเชื่อมโยงเพื่อจับคู่สถานีอ้างอิงสภาพแวดล้อม"
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
           <div className="bg-amber-50 border border-amber-200/60 rounded-xl p-3 flex gap-2.5 text-xs text-amber-900 leading-relaxed">
             <Info className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
             <p>
@@ -292,7 +272,6 @@ export const FarmLocationModal: React.FC<FarmLocationModalProps> = ({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+      </BottomSheet>
   );
 };

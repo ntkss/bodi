@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Check } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { Pond, FinanceTransaction } from '../types';
 import { DEFAULT_INCOME_CATEGORIES, DEFAULT_EXPENSE_CATEGORIES } from '../lib/finance';
+import { BottomSheet } from './BottomSheet';
 
 interface FinanceModalProps {
   isOpen: boolean;
@@ -89,21 +90,12 @@ export const FinanceModal: React.FC<FinanceModalProps> = ({
     type === 'INCOME' ? DEFAULT_INCOME_CATEGORIES : DEFAULT_EXPENSE_CATEGORIES;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
-      <div className="bg-white rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-xl border border-slate-200 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-4">
-          <h3 className="text-xl font-bold text-slate-900">
-            {isEditing ? '✏️ แก้ไขรายการการเงิน' : '💰 บันทึกรายรับ-รายจ่าย'}
-          </h3>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
+    <BottomSheet
+      isOpen={isOpen}
+      onClose={onClose}
+      title={isEditing ? '✏️ แก้ไขรายการการเงิน' : '💰 บันทึกรายรับ-รายจ่าย'}
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
           {/* Income / Expense Switch */}
           <div className="flex gap-2">
             <button
@@ -250,7 +242,6 @@ export const FinanceModal: React.FC<FinanceModalProps> = ({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+      </BottomSheet>
   );
 };

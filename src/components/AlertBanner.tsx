@@ -5,12 +5,12 @@ import {
   CheckCircle2,
   Info,
   BookOpen,
-  X,
   History,
 } from 'lucide-react';
 import { Alert } from '../types';
 import { formatRelativeTime, formatThaiDateTime } from '../lib/date';
 import { DOCUMENTED_ALERT_RULES } from '../lib/alerts';
+import { BottomSheet } from './BottomSheet';
 
 interface AlertBannerProps {
   alerts: Alert[];
@@ -195,24 +195,17 @@ export const AlertBanner: React.FC<AlertBannerProps> = ({
         </div>
       )}
 
-      {/* Documented Rules Info Modal */}
-      {showRulesModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-xl border border-slate-200 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-4">
-              <div className="flex items-center gap-2">
-                <BookOpen className="w-5 h-5 text-sky-700" />
-                <h3 className="text-lg font-bold text-slate-900">
-                  เกณฑ์และกฎการแจ้งเตือนในระบบ บ่อดี (BODI)
-                </h3>
-              </div>
-              <button
-                onClick={() => setShowRulesModal(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {/* Documented Rules Info BottomSheet */}
+      <BottomSheet
+        isOpen={showRulesModal}
+        onClose={() => setShowRulesModal(false)}
+        title={
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-sky-700" />
+            <span>เกณฑ์และกฎการแจ้งเตือนในระบบ บ่อดี (BODI)</span>
+          </div>
+        }
+      >
 
             <p className="text-xs sm:text-sm text-slate-600 mb-4 leading-relaxed">
               ระบบใช้กฎเกณฑ์ตรงไปตรงมา {DOCUMENTED_ALERT_RULES.length} ข้อ
@@ -317,10 +310,8 @@ export const AlertBanner: React.FC<AlertBannerProps> = ({
               >
                 เข้าใจแล้ว
               </button>
-            </div>
           </div>
-        </div>
-      )}
+        </BottomSheet>
     </div>
   );
 };

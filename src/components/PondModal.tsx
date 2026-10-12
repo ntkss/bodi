@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Trash2, Check, MapPin, Loader2 } from 'lucide-react';
+import { Trash2, Check, MapPin, Loader2 } from 'lucide-react';
 import { Pond, PondStatus } from '../types';
 import { getCurrentCoordinates } from '../lib/location';
+import { BottomSheet } from './BottomSheet';
 
 interface PondModalProps {
   isOpen: boolean;
@@ -96,21 +97,12 @@ export const PondModal: React.FC<PondModalProps> = ({
   const isEditing = Boolean(pondToEdit);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
-      <div className="bg-white rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-xl border border-slate-200 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-4">
-          <h3 className="text-xl font-bold text-slate-900">
-            {isEditing ? '✏️ แก้ไขข้อมูลบ่อ' : '➕ เพิ่มบ่อเลี้ยงใหม่'}
-          </h3>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
+    <BottomSheet
+      isOpen={isOpen}
+      onClose={onClose}
+      title={isEditing ? '✏️ แก้ไขข้อมูลบ่อ' : '➕ เพิ่มบ่อเลี้ยงใหม่'}
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
           {/* Pond Name */}
           <div>
             <label className="block text-sm font-semibold text-slate-800 mb-1">
@@ -294,7 +286,6 @@ export const PondModal: React.FC<PondModalProps> = ({
             </div>
           </div>
         </form>
-      </div>
-    </div>
+      </BottomSheet>
   );
 };

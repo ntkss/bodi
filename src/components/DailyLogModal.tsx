@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import {
-  X,
   Check,
   Droplet,
   ArrowLeftRight,
@@ -12,6 +11,7 @@ import {
 } from 'lucide-react';
 import { Pond, PondLog, LogType } from '../types';
 import { getCurrentCoordinates } from '../lib/location';
+import { BottomSheet } from './BottomSheet';
 
 interface DailyLogModalProps {
   isOpen: boolean;
@@ -192,21 +192,13 @@ export const DailyLogModal: React.FC<DailyLogModalProps> = ({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
-      <div className="bg-white rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-xl border border-slate-200 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-4">
-          <h3 className="text-xl font-bold text-slate-900">
-            {isEditing ? '✏️ แก้ไขบันทึก (แก้ไขข้อผิดพลาด)' : '📝 บันทึกข้อมูลประจำวัน'}
-          </h3>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
+    <BottomSheet
+      isOpen={isOpen}
+      onClose={onClose}
+      title={isEditing ? '✏️ แก้ไขบันทึก (แก้ไขข้อผิดพลาด)' : '📝 บันทึกข้อมูลประจำวัน'}
+      maxWidth="max-w-xl"
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
           {/* Pond Selector */}
           <div>
             <label className="block text-sm font-semibold text-slate-800 mb-1">
@@ -522,7 +514,6 @@ export const DailyLogModal: React.FC<DailyLogModalProps> = ({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+      </BottomSheet>
   );
 };
