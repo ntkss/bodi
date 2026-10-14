@@ -113,9 +113,9 @@ describe('Environmental Data Normalization (Milestone 1)', () => {
     ).toThrow();
   });
 
-  it('provides only verified and candidate stations for Samut Songkhram without unusable blocked providers', () => {
-    // Only verified (Open-Meteo) and candidate (Navy Hydro) stations are kept
-    expect(DEFAULT_SAMUT_SONGKHRAM_STATIONS.length).toBe(2);
+  it('provides verified and candidate stations for Samut Songkhram including THAI_WATER', () => {
+    // Verified (Open-Meteo, ThaiWater) and candidate (Navy Hydro) stations are provided
+    expect(DEFAULT_SAMUT_SONGKHRAM_STATIONS.length).toBe(3);
 
     const openMeteoStation = DEFAULT_SAMUT_SONGKHRAM_STATIONS.find(
       (s) => s.provider === 'OPEN_METEO'
@@ -130,12 +130,17 @@ describe('Environmental Data Normalization (Milestone 1)', () => {
     expect(navyStation?.verificationStatus).toBe('CANDIDATE');
     expect(navyStation?.providerStationId).toBe('PAK_NAM_MAE_KLONG_MK');
 
-    // Unusable / blocked providers (ThaiWater, PCD IWIS) must be excluded
+    // Verified ThaiWater station for Samut Songkhram
     const thaiWaterStation = DEFAULT_SAMUT_SONGKHRAM_STATIONS.find(
       (s) => s.provider === 'THAI_WATER'
     );
-    expect(thaiWaterStation).toBeUndefined();
+    expect(thaiWaterStation).toBeDefined();
+    expect(thaiWaterStation?.verificationStatus).toBe('VERIFIED');
+    expect(thaiWaterStation?.providerStationId).toBe('167');
+    expect(thaiWaterStation?.parameters).toContain('salinity');
+    expect(thaiWaterStation?.parameters).toContain('dissolved_oxygen');
 
+    // Unusable / blocked providers (PCD IWIS) must be excluded
     const pcdStation = DEFAULT_SAMUT_SONGKHRAM_STATIONS.find(
       (s) => s.provider === 'PCD_IWIS'
     );
@@ -310,5 +315,196 @@ describe('Pak Nam Mae Klong Astronomical Tide Prediction (Milestone 2)', () => {
     // Strict constraint: Must warn that astronomical prediction is not the canal water level
     expect(tideInfo.caveat).toContain('ไม่ใช่ระดับน้ำจริงในคลองของฟาร์ม');
     expect(tideInfo.caveat).toContain('ดาราศาสตร์');
+  });
+});
+
+describe('ThaiWater Quality Integration (Water Quality API)', () => {
+  const sampleKrathumBanRaw = {
+    id: 75781139,
+    waterquality_id: 162,
+    waterquality_datetime: '2026-10-14 20:00',
+    waterquality_do: 1.829,
+    waterquality_ph: 7.2,
+    waterquality_temp: 30.78,
+    waterquality_turbid: null,
+    waterquality_salinity: 0.19,
+    waterquality_conductivity: 445.5,
+    waterquality_tds: -9999, // Should be filtered out
+    waterquality_station: {
+      id: 162,
+      waterquality_station_name: { th: 'กระทุ่มแบน', en: 'Krathum Ban' },
+      waterquality_station_lat: 13.66606,
+      waterquality_station_long: 100.26816,
+      province_name: { th: 'สมุทรสาคร', en: 'Samut Sakhon' },
+      river_name: 'แม่น้ำท่าจีน',
+      agency_shortname: { th: 'คพ.' },
+    },
+    basin: {
+      id: 5,
+      basin_name: { th: 'ลุ่มน้ำท่าจีน', en: 'Tha Chin Basin' },
+    },
+  };
+
+  it('normalizes ThaiWater station payload into valid readings and filters -9999', async () => {
+    const { normalizeThaiWaterPayload } = await import('../api/_lib/environmental');
+
+    const fetchedAt = new Date('2026-10-14T20:30:00+07:00');
+    const station = normalizeThaiWaterPayload(sampleKrathumBanRaw, fetchedAt, 13.4098, 99.9965);
+
+    expect(station.providerStationId).toBe('162');
+    expect(station.name).toContain('กระทุ่มแบน');
+    expect(station.river).toBe('แม่น้ำท่าจีน');
+    expect(station.province).toBe('สมุทรสาคร');
+    expect(station.distanceKm).toBeGreaterThan(30);
+    expect(station.distanceKm).toBeLessThan(55);
+    expect(station.isStale).toBe(false);
+    expect(station.freshness).toBe('FRESH');
+
+    // Check individual readings
+    const salinity = station.readings.find((r) => r.parameter === 'salinity');
+    expect(salinity).toBeDefined();
+    expect(salinity?.value).toBe(0.19);
+    expect(salinity?.unit).toBe('g/L');
+    expect(salinity?.status).toBe('VALID');
+
+    const doReading = station.readings.find((r) => r.parameter === 'dissolved_oxygen');
+    expect(doReading).toBeDefined();
+    expect(doReading?.value).toBe(1.829);
+    expect(doReading?.unit).toBe('mg/L');
+    expect(doReading?.status).toBe('VALID');
+
+    // -9999 (tds) and null (turbid) must be excluded
+    const tds = station.readings.find((r) => r.parameter === 'tds');
+    expect(tds).toBeUndefined();
+
+    const turbid = station.readings.find((r) => r.parameter === 'turbidity');
+    expect(turbid).toBeUndefined();
+  });
+
+  it('flags ThaiWater readings as STALE when timestamp is older than 3 hours', async () => {
+    const { normalizeThaiWaterPayload } = await import('../api/_lib/environmental');
+
+    const staleFetchTime = new Date('2026-10-15T02:00:00+07:00'); // 6 hours later
+    const station = normalizeThaiWaterPayload(sampleKrathumBanRaw, staleFetchTime);
+
+    expect(station.isStale).toBe(true);
+    expect(station.freshness).toBe('STALE');
+    for (const r of station.readings) {
+      expect(r.status).toBe('STALE');
+    }
+  });
+
+  it('calculates Haversine distance correctly between coordinates', async () => {
+    const { calculateHaversineDistanceKm } = await import('../api/_lib/environmental');
+
+    // Distance between Samut Songkhram center (13.4098, 99.9965) and Amphawa (13.4241, 99.9563)
+    const dist = calculateHaversineDistanceKm(13.4098, 99.9965, 13.4241, 99.9563);
+    expect(dist).toBeCloseTo(4.6, 1);
+  });
+
+  it('filters and ranks relevant stations for Samut Songkhram and neighboring provinces', async () => {
+    const { filterRelevantThaiWaterStations } = await import('../api/_lib/environmental');
+
+    const mockStations = [
+      sampleKrathumBanRaw,
+      {
+        id: 112,
+        waterquality_id: 112,
+        waterquality_datetime: '2026-10-14 20:00',
+        waterquality_salinity: 0.1,
+        waterquality_station: {
+          id: 112,
+          waterquality_station_name: { th: 'ขอนแก่น' },
+          waterquality_station_lat: 16.36,
+          waterquality_station_long: 102.82,
+          province_name: { th: 'ขอนแก่น' },
+          river_name: 'แม่น้ำชี',
+        },
+        basin: { basin_name: { th: 'ลุ่มน้ำชี' } },
+      },
+      {
+        id: 170,
+        waterquality_id: 170,
+        waterquality_datetime: '2026-10-14 20:00',
+        waterquality_salinity: 0.15,
+        waterquality_do: 3.5,
+        waterquality_station: {
+          id: 170,
+          waterquality_station_name: { th: 'เมืองราชบุรี' },
+          waterquality_station_lat: 13.5594,
+          waterquality_station_long: 99.817,
+          province_name: { th: 'ราชบุรี' },
+          river_name: 'แม่น้ำแม่กลอง',
+        },
+        basin: { basin_name: { th: 'ลุ่มน้ำแม่กลอง' } },
+      },
+    ];
+
+    const filtered = filterRelevantThaiWaterStations(mockStations, 13.4098, 99.9965, 3);
+    expect(filtered.length).toBe(2); // Only Krathum Ban and Ratchaburi, Khon Kaen excluded
+    expect(filtered[0].name).toContain('ราชบุรี'); // Closest first (~25 km vs ~40 km)
+    expect(filtered[1].name).toContain('กระทุ่มแบน');
+  });
+
+  it('elevates risk assessment to "เฝ้าระวัง" when river water DO is below 3.0 mg/L', async () => {
+    const { evaluateWaterRiskSummary } = await import('../api/_lib/environmental');
+
+    const weatherStation = {
+      provider: 'OPEN_METEO',
+      verificationStatus: 'VERIFIED',
+      freshness: 'FRESH',
+      readings: [{ parameter: 'precipitation', value: 0.0, observedAt: new Date(), status: 'VALID' }],
+    };
+
+    const riverStationWithLowDo = {
+      provider: 'THAI_WATER',
+      name: 'สถานีกระทุ่มแบน แม่น้ำท่าจีน',
+      verificationStatus: 'VERIFIED',
+      freshness: 'FRESH',
+      readings: [
+        { parameter: 'salinity', value: 0.2, observedAt: new Date(), status: 'VALID' },
+        { parameter: 'dissolved_oxygen', value: 1.8, observedAt: new Date(), status: 'VALID' },
+      ],
+    };
+
+    const assessment = evaluateWaterRiskSummary({
+      stations: [weatherStation, riverStationWithLowDo],
+    });
+
+    expect(assessment.statusLabel).toBe('เฝ้าระวัง');
+    expect(assessment.badgeTone).toBe('amber');
+    expect(assessment.summaryText).toContain('ออกซิเจนในน้ำธรรมชาติลดต่ำ');
+    expect(assessment.reasons.some((r) => r.includes('ต่ำกว่าเกณฑ์ปลอดภัย 3.0 mg/L'))).toBe(true);
+    expect(assessment.recommendedActions.some((a) => a.includes('งดหรือชะลอการเปิดประตูระบายน้ำ'))).toBe(true);
+  });
+
+  it('generates environmental alert ENV_RIVER_LOW_DO when river DO drops below 3.0 mg/L', async () => {
+    const { evaluateEnvironmentalAlerts } = await import('../api/_lib/environmental');
+
+    const now = new Date('2026-10-14T20:30:00+07:00');
+    const riverStation = {
+      id: 'st-tw-162',
+      name: 'กระทุ่มแบน',
+      riverName: 'แม่น้ำท่าจีน',
+      verificationStatus: 'VERIFIED',
+      freshness: 'FRESH',
+      readings: [
+        { parameter: 'dissolved_oxygen', value: 1.82, observedAt: now, status: 'VALID' },
+      ],
+    };
+
+    const alerts = evaluateEnvironmentalAlerts({
+      farmId: 'farm-test-1',
+      referenceTime: now,
+      waterQualityStations: [riverStation],
+    });
+
+    expect(alerts.length).toBe(1);
+    const riverAlert = alerts[0];
+    expect(riverAlert.ruleCode).toBe('ENV_RIVER_LOW_DO');
+    expect(riverAlert.severity).toBe('WARNING');
+    expect(riverAlert.title).toContain('ออกซิเจนในน้ำธรรมชาติลดต่ำ');
+    expect(riverAlert.message).toContain('1.82 mg/L');
+    expect(riverAlert.dedupeKey).toBe('ENV_RIVER_DO_farm-test-1_st-tw-162_2026-10-14');
   });
 });

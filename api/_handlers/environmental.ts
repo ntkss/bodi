@@ -8,6 +8,8 @@ import {
 import {
   DEFAULT_SAMUT_SONGKHRAM_STATIONS,
   fetchOpenMeteoEnvironmentalData,
+  fetchThaiWaterQualityData,
+  filterRelevantThaiWaterStations,
   evaluateWaterRiskSummary,
   predictPakNamMaeKlongTide,
   evaluateEnvironmentalAlerts,
@@ -95,11 +97,73 @@ export default async function handler(
         },
       });
 
+      // 2. Sync ThaiWater Quality stations for the farm's river basin
+      try {
+        const rawThaiWater = await fetchThaiWaterQualityData(7000);
+        const relevantThaiWater = filterRelevantThaiWaterStations(rawThaiWater, lat, lng, 3);
+
+        for (const tws of relevantThaiWater) {
+          let dbTwStation = await prisma.referenceStation.findFirst({
+            where: {
+              farmId,
+              provider: 'THAI_WATER',
+              providerStationId: tws.providerStationId,
+            },
+          });
+
+          if (!dbTwStation) {
+            dbTwStation = await prisma.referenceStation.create({
+              data: {
+                farmId,
+                provider: 'THAI_WATER',
+                providerStationId: tws.providerStationId,
+                name: tws.name,
+                sourceUrl: tws.sourceUrl,
+                latitude: tws.latitude,
+                longitude: tws.longitude,
+                parameters: 'salinity,dissolved_oxygen,ph,turbidity,tds,conductivity,temperature',
+                units: 'g/L, mg/L, pH, ntu, mg/L, µS/cm, °C',
+                relevanceNotes: tws.relevanceNotes,
+                verificationStatus: 'VERIFIED',
+                lastCheckedAt: new Date(),
+              },
+            });
+          } else {
+            await prisma.referenceStation.update({
+              where: { id: dbTwStation.id },
+              data: {
+                name: tws.name,
+                relevanceNotes: tws.relevanceNotes,
+                lastCheckedAt: new Date(),
+                verificationStatus: 'VERIFIED',
+              },
+            });
+          }
+
+          for (const r of tws.readings) {
+            const created = await prisma.environmentalReading.create({
+              data: {
+                stationId: dbTwStation.id,
+                parameter: r.parameter,
+                value: r.value,
+                unit: r.unit,
+                observedAt: r.observedAt,
+                fetchedAt: r.fetchedAt,
+                status: r.status,
+                sourceRecordId: r.sourceRecordId,
+              },
+            });
+            savedReadings.push(created);
+          }
+        }
+      } catch (twErr) {
+        console.warn('Non-blocking ThaiWater quality sync error:', twErr);
+      }
+
       const updatedStations = await prisma.referenceStation.findMany({
         where: {
           OR: [{ farmId: farmId }, { farmId: null }],
           verificationStatus: { not: 'BLOCKED' },
-          provider: { notIn: ['THAI_WATER', 'PCD_IWIS'] },
         },
         include: {
           readings: {
@@ -137,8 +201,9 @@ export default async function handler(
 
       const tideWindow = predictPakNamMaeKlongTide(now);
 
-      // Evaluate Environmental Alert Rules (Milestone 3: Rain & Tide Deduplication)
+      // Evaluate Environmental Alert Rules (Rain, Tide, and River Low DO)
       const weatherStation = formatted.find((s) => s.provider === 'OPEN_METEO');
+      const waterQualityStations = formatted.filter((s) => s.provider === 'THAI_WATER');
       const recentAlerts = await prisma.alert.findMany({
         where: {
           pondId: null,
@@ -152,6 +217,7 @@ export default async function handler(
       const evaluatedAlerts = evaluateEnvironmentalAlerts({
         farmId,
         weatherStation,
+        waterQualityStations,
         tideWindow,
         referenceTime: now,
         existingAlerts: recentAlerts,
@@ -203,13 +269,10 @@ export default async function handler(
   // 2. Base endpoint: /api/environmental
   if (req.method === 'GET') {
     try {
-      // Clean up blocked / unusable external providers (ThaiWater, PCD IWIS)
+      // Clean up blocked stations
       await prisma.referenceStation.deleteMany({
         where: {
-          OR: [
-            { provider: { in: ['THAI_WATER', 'PCD_IWIS'] } },
-            { verificationStatus: 'BLOCKED' },
-          ],
+          verificationStatus: 'BLOCKED',
         },
       });
 
@@ -217,7 +280,6 @@ export default async function handler(
         where: {
           OR: [{ farmId: farmId }, { farmId: null }],
           verificationStatus: { not: 'BLOCKED' },
-          provider: { notIn: ['THAI_WATER', 'PCD_IWIS'] },
         },
         include: {
           readings: {
@@ -252,7 +314,6 @@ export default async function handler(
           where: {
             OR: [{ farmId: farmId }, { farmId: null }],
             verificationStatus: { not: 'BLOCKED' },
-            provider: { notIn: ['THAI_WATER', 'PCD_IWIS'] },
           },
           include: {
             readings: {

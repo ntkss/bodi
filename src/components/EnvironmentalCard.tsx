@@ -79,6 +79,16 @@ export const EnvironmentalCard: React.FC<EnvironmentalCardProps> = ({
   const currentRainValue = precipReading ? precipReading.value : 0;
   const forecastRainValue = forecastReading ? forecastReading.value : 0;
 
+  // ThaiWater River Water Quality station extraction (priority: with readings first)
+  const thaiWaterStation =
+    stations.find((s) => s.provider === 'THAI_WATER' && s.readings && s.readings.length > 0) ||
+    stations.find((s) => s.provider === 'THAI_WATER');
+
+  const twSalinityReading = thaiWaterStation?.readings?.find((r) => r.parameter === 'salinity');
+  const twDoReading = thaiWaterStation?.readings?.find(
+    (r) => r.parameter === 'dissolved_oxygen' || r.parameter === 'do'
+  );
+
   // Fallback risk assessment if server did not pass one directly
   const riskAssessment: WaterRiskAssessment = serverRiskAssessment || {
     statusLabel: (weatherStation
@@ -397,7 +407,7 @@ export const EnvironmentalCard: React.FC<EnvironmentalCardProps> = ({
           </div>
         </div>
 
-        {/* Pillar 4: คุณภาพน้ำต้นทาง (เค็ม / pH ตัวใหญ่ กระชับ) */}
+        {/* Pillar 4: คุณภาพน้ำต้นทาง (เค็ม / DO จากสถานีจริง หรือตรวจจริงหน้าแปลง) */}
         <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 flex flex-col justify-between hover:border-slate-300 transition-colors">
           <div>
             <div className="flex items-center justify-between text-xs mb-2">
@@ -405,30 +415,72 @@ export const EnvironmentalCard: React.FC<EnvironmentalCardProps> = ({
                 <ShieldCheck className="w-4 h-4 text-emerald-600" />
                 <span>4. คุณภาพน้ำต้นทาง</span>
               </span>
-              <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-200">
-                ตรวจจริง
-              </span>
+              {thaiWaterStation ? (
+                renderFreshnessBadge(thaiWaterStation.freshness)
+              ) : (
+                <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-200">
+                  ตรวจจริง
+                </span>
+              )}
             </div>
 
-            {/* Quick Metrics: เค็ม / pH */}
-            <div className="my-2 grid grid-cols-2 gap-2">
-              <div className="bg-white rounded-xl p-2 border border-slate-200 text-center">
-                <span className="text-xs font-bold text-slate-500 block">เค็ม</span>
-                <span className="text-xs font-extrabold text-slate-900 block mt-0.5">
-                  วัดก่อนเปิด
-                </span>
+            {thaiWaterStation && (twSalinityReading || twDoReading) ? (
+              <div className="my-1.5 space-y-1.5">
+                <p className="text-xs font-bold text-slate-700 truncate" title={thaiWaterStation.name}>
+                  {thaiWaterStation.name.replace('สถานีคุณภาพน้ำ', '').replace('สถานี', '')}
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-white rounded-xl p-2 border border-slate-200 text-center">
+                    <span className="text-[10px] font-bold text-slate-500 block">ความเค็ม</span>
+                    <span className="text-sm font-extrabold text-slate-900 block mt-0.5 font-mono">
+                      {twSalinityReading ? `${twSalinityReading.value.toFixed(2)}` : '-'}
+                      <span className="text-[10px] font-normal text-slate-500 ml-0.5">g/L</span>
+                    </span>
+                  </div>
+                  <div
+                    className={`rounded-xl p-2 border text-center ${
+                      twDoReading && twDoReading.value < 3.0
+                        ? 'bg-amber-50 border-amber-300 text-amber-950'
+                        : 'bg-white border-slate-200 text-slate-900'
+                    }`}
+                  >
+                    <span className="text-[10px] font-bold text-slate-500 block">ออกซิเจน (DO)</span>
+                    <span
+                      className={`text-sm font-extrabold block mt-0.5 font-mono ${
+                        twDoReading && twDoReading.value < 3.0 ? 'text-amber-700' : 'text-slate-900'
+                      }`}
+                    >
+                      {twDoReading ? `${twDoReading.value.toFixed(2)}` : '-'}
+                      <span className="text-[10px] font-normal text-slate-500 ml-0.5">mg/L</span>
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div className="bg-white rounded-xl p-2 border border-slate-200 text-center">
-                <span className="text-xs font-bold text-slate-500 block">pH</span>
-                <span className="text-xs font-extrabold text-slate-900 block mt-0.5">
-                  วัดก่อนสูบ
-                </span>
+            ) : (
+              <div className="my-2 grid grid-cols-2 gap-2">
+                <div className="bg-white rounded-xl p-2 border border-slate-200 text-center">
+                  <span className="text-xs font-bold text-slate-500 block">เค็ม</span>
+                  <span className="text-xs font-extrabold text-slate-900 block mt-0.5">
+                    วัดก่อนเปิด
+                  </span>
+                </div>
+                <div className="bg-white rounded-xl p-2 border border-slate-200 text-center">
+                  <span className="text-xs font-bold text-slate-500 block">pH</span>
+                  <span className="text-xs font-extrabold text-slate-900 block mt-0.5">
+                    วัดก่อนสูบ
+                  </span>
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
-          <div className="pt-2 text-[11px] text-slate-500 font-medium">
-            ใช้ชุดตรวจวัดจริงหน้าประตูระบายน้ำ
+          <div className="pt-2 text-[11px] text-slate-500 font-medium flex items-center justify-between">
+            <span>ตรวจวัดจริงหน้าประตูก่อนจัดการน้ำ</span>
+            {twDoReading && twDoReading.value < 3.0 && (
+              <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
+                DO ต่ำ
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -480,7 +532,10 @@ export const EnvironmentalCard: React.FC<EnvironmentalCardProps> = ({
           <div className="flex items-center gap-1.5 truncate">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
             <span>
-              <strong>น้ำต้นทาง:</strong> บันทึกตรวจจริงหน้าแปลง
+              <strong>คุณภาพน้ำ:</strong>{' '}
+              {thaiWaterStation
+                ? `สทนช./คพ. (${thaiWaterStation.freshness === 'FRESH' ? 'สดใหม่' : 'รอบล่าสุด'})`
+                : 'บันทึกตรวจจริงหน้าแปลง'}
             </span>
           </div>
         </div>
@@ -495,7 +550,7 @@ export const EnvironmentalCard: React.FC<EnvironmentalCardProps> = ({
               return (
                 <div
                   key={st.id}
-                  className="bg-white rounded-xl p-2.5 border border-slate-200 text-xs space-y-1"
+                  className="bg-white rounded-xl p-2.5 border border-slate-200 text-xs space-y-1.5"
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-slate-800">{st.name}</span>
@@ -514,12 +569,32 @@ export const EnvironmentalCard: React.FC<EnvironmentalCardProps> = ({
                     {renderVerificationBadge(st.verificationStatus)}
                     {isVerified && renderFreshnessBadge(st.freshness)}
                   </div>
-                  {latest && (
+                  {st.readings && st.readings.length > 0 ? (
+                    <div className="pt-1.5 border-t border-slate-100 space-y-1">
+                      <div className="flex items-center justify-between text-[10px] text-slate-400">
+                        <span>ค่าตรวจวัดล่าสุด:</span>
+                        <span>{formatThaiDateTime(st.readings[0].observedAt)}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {st.readings.map((r, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[10px] font-mono"
+                          >
+                            <span className="text-slate-500 font-sans">{r.parameter}:</span>
+                            <strong>
+                              {r.value} {r.unit}
+                            </strong>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : latest ? (
                     <div className="text-[10px] text-slate-500 flex items-center justify-between pt-1 border-t border-slate-100">
                       <span>ค่าล่าสุด: {latest.value} {latest.unit}</span>
                       <span>ตรวจเมื่อ: {formatThaiDateTime(latest.observedAt)}</span>
                     </div>
-                  )}
+                  ) : null}
                 </div>
               );
             })}

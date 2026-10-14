@@ -182,6 +182,269 @@ export async function fetchOpenMeteoEnvironmentalData(
 }
 
 /**
+ * Calculates Haversine distance in kilometers between two GPS coordinates.
+ */
+export function calculateHaversineDistanceKm(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  const R = 6371; // Earth radius in km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 10) / 10;
+}
+
+/**
+ * Parses ThaiWater datetime string (e.g., "2026-10-14 20:00") into a Date object in Bangkok time (+07:00).
+ */
+export function parseThaiWaterDateTime(dtStr?: string | null): Date | null {
+  if (!dtStr) return null;
+  const clean = dtStr.trim().replace(' ', 'T');
+  const iso = clean.includes('+') || clean.endsWith('Z') ? clean : `${clean}:00+07:00`;
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+export interface ThaiWaterQualityRawItem {
+  id: number;
+  waterquality_id?: number;
+  waterquality_datetime: string;
+  waterquality_do?: number | null;
+  waterquality_ph?: number | null;
+  waterquality_temp?: number | null;
+  waterquality_turbid?: number | null;
+  waterquality_bod?: number | null;
+  waterquality_tcb?: number | null;
+  waterquality_fcb?: number | null;
+  waterquality_nh3n?: number | null;
+  waterquality_wqi?: number | null;
+  waterquality_ammonium?: number | null;
+  waterquality_nitrate?: number | null;
+  waterquality_colorstatus?: string | number | null;
+  waterquality_status?: string | null;
+  waterquality_salinity?: number | null;
+  waterquality_conductivity?: number | null;
+  waterquality_tds?: number | null;
+  waterquality_chlorophyll?: number | null;
+  waterquality_station?: {
+    id: number;
+    agency_id?: number;
+    agency_name?: { th?: string; en?: string };
+    agency_shortname?: { th?: string; en?: string };
+    waterquality_station_name?: { th?: string; en?: string };
+    waterquality_station_lat?: number;
+    waterquality_station_long?: number;
+    waterquality_station_oldcode?: string;
+    province_name?: { th?: string; en?: string };
+    amphoe_name?: { th?: string; en?: string };
+    tumbon_name?: { th?: string; en?: string };
+    river_name?: string;
+  };
+  station_type?: string;
+  basin?: {
+    id?: number;
+    basin_name?: { th?: string; en?: string };
+  };
+}
+
+export interface ThaiWaterQualityApiResponse {
+  data?: {
+    result?: string;
+    data?: ThaiWaterQualityRawItem[];
+  };
+}
+
+export interface NormalizedThaiWaterStation {
+  providerStationId: string;
+  name: string;
+  province: string;
+  amphoe: string;
+  tumbon: string;
+  river: string;
+  agency: string;
+  latitude: number | null;
+  longitude: number | null;
+  distanceKm: number;
+  observedAt: Date;
+  isStale: boolean;
+  freshness: 'FRESH' | 'STALE' | 'NO_DATA';
+  readings: NormalizedEnvironmentalReading[];
+  relevanceNotes: string;
+  sourceUrl: string;
+}
+
+/**
+ * Normalizes a raw ThaiWater station record into a structured station with readings.
+ * Correctly filters out -9999 (unavailable/sensor error) and flags stale observations (>3h).
+ */
+export function normalizeThaiWaterPayload(
+  item: ThaiWaterQualityRawItem,
+  fetchedAt: Date = new Date(),
+  farmLat?: number,
+  farmLng?: number
+): NormalizedThaiWaterStation {
+  const stationMeta = item.waterquality_station;
+  const stationId = String(stationMeta?.id || item.waterquality_id || item.id);
+  const stationName = stationMeta?.waterquality_station_name?.th || `สถานี #${stationId}`;
+  const province = stationMeta?.province_name?.th || '';
+  const amphoe = stationMeta?.amphoe_name?.th || '';
+  const tumbon = stationMeta?.tumbon_name?.th || '';
+  const river = stationMeta?.river_name || 'สายน้ำธรรมชาติ';
+  const agency = stationMeta?.agency_shortname?.th || stationMeta?.agency_name?.th || 'คพ./สทนช.';
+  const lat = stationMeta?.waterquality_station_lat ?? null;
+  const lng = stationMeta?.waterquality_station_long ?? null;
+
+  const observedAt = parseThaiWaterDateTime(item.waterquality_datetime) || fetchedAt;
+  const ageHours = (fetchedAt.getTime() - observedAt.getTime()) / (1000 * 60 * 60);
+  const isStale = ageHours > 3;
+  const baseStatus: 'VALID' | 'STALE' = isStale ? 'STALE' : 'VALID';
+
+  const readings: NormalizedEnvironmentalReading[] = [];
+
+  const addReading = (
+    param: string,
+    val: number | null | undefined,
+    unit: string,
+    minVal: number,
+    maxVal: number
+  ) => {
+    if (val === null || val === undefined || val === -9999 || isNaN(val)) return;
+    const isSuspect = val < minVal || val > maxVal;
+    readings.push({
+      parameter: param,
+      value: val,
+      unit,
+      observedAt,
+      fetchedAt,
+      status: isSuspect ? 'SUSPECT' : baseStatus,
+      sourceRecordId: `thaiwater-${stationId}-${item.waterquality_datetime}-${param}`,
+    });
+  };
+
+  // 1. Salinity (ความเค็ม - สำคัญที่สุดสำหรับฟาร์มกุ้ง/ปู)
+  addReading('salinity', item.waterquality_salinity, 'g/L', 0, 60);
+
+  // 2. Dissolved Oxygen (DO - ออกซิเจนละลายน้ำ)
+  addReading('dissolved_oxygen', item.waterquality_do, 'mg/L', 0, 25);
+
+  // 3. pH (กรด-ด่าง)
+  addReading('ph', item.waterquality_ph, 'pH', 0, 14);
+
+  // 4. Turbidity (ความขุ่น)
+  addReading('turbidity', item.waterquality_turbid, 'ntu', 0, 2000);
+
+  // 5. Total Dissolved Solids (TDS สารละลาย)
+  addReading('tds', item.waterquality_tds, 'mg/L', 0, 50000);
+
+  // 6. Electrical Conductivity (ความนำไฟฟ้า)
+  addReading('conductivity', item.waterquality_conductivity, 'µS/cm', 0, 100000);
+
+  // 7. Water Temperature (อุณหภูมิน้ำ)
+  addReading('temperature', item.waterquality_temp, '°C', 0, 55);
+
+  const distanceKm =
+    farmLat != null && farmLng != null && lat != null && lng != null
+      ? calculateHaversineDistanceKm(farmLat, farmLng, lat, lng)
+      : 0;
+
+  const relevanceNotes = `สถานีตรวจวัดคุณภาพน้ำ ${stationName} (${river} จ.${province}) สังกัด ${agency} ห่างจากฟาร์ม ~${distanceKm} กม.`;
+
+  return {
+    providerStationId: stationId,
+    name: `สถานีคุณภาพน้ำ${stationName} (${river} จ.${province})`,
+    province,
+    amphoe,
+    tumbon,
+    river,
+    agency,
+    latitude: lat,
+    longitude: lng,
+    distanceKm,
+    observedAt,
+    isStale,
+    freshness: readings.length === 0 ? 'NO_DATA' : isStale ? 'STALE' : 'FRESH',
+    readings,
+    relevanceNotes,
+    sourceUrl: 'https://nationalthaiwater.onwr.go.th/waterquality',
+  };
+}
+
+/**
+ * Filters and ranks ThaiWater stations that directly influence the Samut Songkhram aquaculture basin.
+ * Prioritizes:
+ *  1. Stations in Samut Songkhram, Samut Sakhon, Ratchaburi, Nakhon Pathom, Phetchaburi.
+ *  2. Stations in connected river basins: Mae Klong, Tha Chin, Phetchaburi.
+ *  3. Proximity (sorted by distance from farm).
+ */
+export function filterRelevantThaiWaterStations(
+  items: ThaiWaterQualityRawItem[],
+  farmLat: number,
+  farmLng: number,
+  maxCount = 4
+): NormalizedThaiWaterStation[] {
+  const targetProvinces = ['สมุทรสงคราม', 'สมุทรสาคร', 'ราชบุรี', 'เพชรบุรี', 'นครปฐม'];
+  const targetBasins = ['แม่กลอง', 'ท่าจีน', 'เพชรบุรี'];
+
+  const normalized = items.map((item) =>
+    normalizeThaiWaterPayload(item, new Date(), farmLat, farmLng)
+  );
+
+  const matched = normalized.filter((st) => {
+    const isTargetProv = targetProvinces.some((tp) => st.province.includes(tp));
+    const isTargetRiver = targetBasins.some(
+      (tb) => st.river.includes(tb) || st.name.includes(tb)
+    );
+    const isClose = st.distanceKm <= 75; // Within 75 km radius
+    return isTargetProv || isTargetRiver || isClose;
+  });
+
+  // Sort by distance (closest first)
+  matched.sort((a, b) => a.distanceKm - b.distanceKm);
+
+  return matched.slice(0, maxCount);
+}
+
+/**
+ * Server-side fetch to ThaiWater 3.0 Water Quality API with timeout and error resilience.
+ */
+export async function fetchThaiWaterQualityData(
+  timeoutMs = 10000
+): Promise<ThaiWaterQualityRawItem[]> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  const url = 'https://api-v3.thaiwater.net/api/v1/thaiwater30/analyst/waterquality_load';
+
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'BODI-Smart-Aquaculture/1.0 (Samut Songkhram Farm Pilot)',
+      },
+    });
+
+    if (!res.ok) {
+      throw new Error(`ThaiWater API HTTP Error: ${res.status} ${res.statusText}`);
+    }
+
+    const json = (await res.json()) as ThaiWaterQualityApiResponse;
+    return json.data?.data || [];
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+/**
  * Pak Nam Mae Klong Astronomical Tide Prediction (Candidate Reference)
  * Calculates candidate astronomical tide window for Pak Nam Mae Klong (Station MK).
  * IMPORTANT: This is an astronomical prediction at the river estuary, NOT the farm's canal!
@@ -277,6 +540,7 @@ export interface EvaluateWaterRiskInput {
   stations: {
     verificationStatus: string;
     provider: string;
+    name?: string;
     readings?: {
       parameter: string;
       value: number;
@@ -386,6 +650,51 @@ export function evaluateWaterRiskSummary(input: EvaluateWaterRiskInput): WaterRi
   const currentRain = precipReading ? precipReading.value : 0;
   const forecastRain = forecastReading ? forecastReading.value : 0;
 
+  // Check river water quality from ThaiWater stations if available
+  const thaiWaterStations = stations.filter(
+    (s) => s.provider === 'THAI_WATER' && s.verificationStatus !== 'BLOCKED'
+  );
+  for (const tws of thaiWaterStations) {
+    const twReadings =
+      tws.readings && tws.readings.length > 0
+        ? tws.readings
+        : tws.latestReading
+          ? [tws.latestReading]
+          : [];
+    const doReading = twReadings.find(
+      (r) => r.parameter === 'dissolved_oxygen' || r.parameter === 'do'
+    );
+
+    // Low DO in river water (< 3.0 mg/L) -> Elevate to 'เฝ้าระวัง'
+    if (
+      doReading &&
+      typeof doReading.value === 'number' &&
+      doReading.value < 3.0 &&
+      doReading.status !== 'SUSPECT' &&
+      tws.freshness !== 'STALE'
+    ) {
+      const stationName = tws.name || 'น้ำธรรมชาติ';
+      return {
+        statusLabel: 'เฝ้าระวัง',
+        badgeTone: 'amber',
+        summaryText: `ออกซิเจนในน้ำธรรมชาติลดต่ำ (${doReading.value} mg/L) เสี่ยงสัตว์น้ำน็อคน้ำหากเปิดรับน้ำ`,
+        reasons: [
+          `สถานีตรวจวัดคุณภาพน้ำ (${stationName}) ตรวจพบค่าออกซิเจนละลายน้ำ (DO) ${doReading.value} mg/L (ต่ำกว่าเกณฑ์ปลอดภัย 3.0 mg/L)`,
+          'มวลน้ำธรรมชาติที่ออกซิเจนต่ำเมื่อไหลหรือสูบเข้าบ่อเพาะเลี้ยง จะทำให้กุ้ง/ปูเกิดอาการลอยหัวหรือน็อคน้ำเฉียบพลัน',
+          'สภาพน้ำในคลองส่งน้ำอาจได้รับอิทธิพลจากน้ำเสียหรือน้ำเน่าขังจากต้นน้ำ',
+        ],
+        recommendedActions: [
+          'งดหรือชะลอการเปิดประตูระบายน้ำรับน้ำเข้าบ่อจนกว่าค่า DO จะฟื้นตัวเกิน 3.0 mg/L',
+          'หากจำเป็นต้องรับน้ำ ให้ตรวจวัดค่า DO ที่หน้าบานประตูระบายน้ำจริงด้วยชุดทดสอบก่อนสูบ',
+          'เปิดเครื่องตีน้ำหรือระบบเพิ่มอากาศในบ่อเลี้ยงเพื่อความปลอดภัย',
+        ],
+        rainfallCurrent: currentRain,
+        rainfallForecast24h: forecastRain,
+        evaluatedAt: now.toISOString(),
+      };
+    }
+  }
+
   // Case: Heavy Rain (Current >= 10.0mm OR Forecast 24h >= 25.0mm) -> 'เฝ้าระวัง'
   if (currentRain >= 10.0 || forecastRain >= 25.0) {
     return {
@@ -481,6 +790,19 @@ export const DEFAULT_SAMUT_SONGKHRAM_STATIONS = [
       'มาตราน้ำทำนายรายปีทางดาราศาสตร์บริเวณปากอ่าวแม่กลอง สำหรับวางแผนจังหวะเปิด-ปิดประตูระบายน้ำ (ข้อควรระวัง: เป็นระดับน้ำทำนาย ไม่ใช่ระดับน้ำตรวจวัดจริงในคลองซอย)',
     verificationStatus: 'CANDIDATE',
   },
+  {
+    provider: 'THAI_WATER',
+    providerStationId: '167',
+    name: 'สถานีคุณภาพน้ำอัมพวา แม่น้ำแม่กลอง (สทนช. / คพ.)',
+    sourceUrl: 'https://nationalthaiwater.onwr.go.th/waterquality',
+    latitude: 13.424153,
+    longitude: 99.95636,
+    parameters: 'salinity,dissolved_oxygen,ph,turbidity,tds,conductivity,temperature',
+    units: 'g/L, mg/L, pH, ntu, mg/L, µS/cm, °C',
+    relevanceNotes:
+      'สถานีตรวจวัดคุณภาพน้ำอัตโนมัติ แม่น้ำแม่กลอง อ.อัมพวา จ.สมุทรสงคราม เชื่อมโยงลุ่มน้ำแม่กลอง-ดำเนินสะดวก สำหรับเฝ้าระวังคุณภาพน้ำต้นทางก่อนเปิดประตูระบายน้ำ',
+    verificationStatus: 'VERIFIED',
+  },
 ];
 
 /**
@@ -542,22 +864,45 @@ export interface EnvironmentalAlertInput {
       status?: string;
     } | null;
   } | null;
+  waterQualityStations?: {
+    id?: string;
+    verificationStatus: string;
+    provider?: string;
+    name?: string;
+    riverName?: string;
+    freshness?: string;
+    readings?: {
+      parameter: string;
+      value: number;
+      unit?: string;
+      observedAt: Date | string;
+      status?: string;
+    }[];
+    latestReading?: {
+      parameter: string;
+      value: number;
+      unit?: string;
+      observedAt: Date | string;
+      status?: string;
+    } | null;
+  }[];
   tideWindow?: TideWindowInfo | null;
   existingAlerts?: { dedupeKey?: string | null }[];
   thresholds?: {
     currentRainMm?: number;
     forecastRain24hMm?: number;
     tideWindowMinutes?: number;
+    riverLowDoMgL?: number;
   };
 }
 
 /**
- * Pure function to evaluate environmental alert rules (Rainfall & Tide Window).
+ * Pure function to evaluate environmental alert rules (Rainfall, Tide Window, and River Water Quality).
  * Kept strictly distinct from pond-level logs (farm-wide alerts with pondId = null).
  * Ensures no alert is generated from unverified or stale data.
  */
 export function evaluateEnvironmentalAlerts(input: EnvironmentalAlertInput): EvaluatedAlertItem[] {
-  const { farmId, weatherStation, tideWindow, existingAlerts = [], thresholds } = input;
+  const { farmId, weatherStation, waterQualityStations = [], tideWindow, existingAlerts = [], thresholds } = input;
   const newAlerts: EvaluatedAlertItem[] = [];
   const existingKeys = new Set(
     existingAlerts.map((a) => a.dedupeKey).filter(Boolean)
@@ -570,6 +915,7 @@ export function evaluateEnvironmentalAlerts(input: EnvironmentalAlertInput): Eva
   const currentRainThreshold = thresholds?.currentRainMm ?? 10.0;
   const forecastRainThreshold = thresholds?.forecastRain24hMm ?? 25.0;
   const tideWindowMinutes = thresholds?.tideWindowMinutes ?? 120; // 2 hours
+  const riverLowDoThreshold = thresholds?.riverLowDoMgL ?? 3.0; // mg/L
 
   // 1. Environmental Rule: HEAVY_RAIN
   // Must only alert when station is VERIFIED and FRESH (< 3 hours)
@@ -663,6 +1009,59 @@ export function evaluateEnvironmentalAlerts(input: EnvironmentalAlertInput): Eva
             dedupeKey,
             ruleCode: 'ENV_HIGH_TIDE_WINDOW',
             sourceObservationTime: refDate.toISOString(),
+            createdAt: new Date().toISOString(),
+          };
+
+          newAlerts.push(alert);
+          existingKeys.add(dedupeKey);
+        }
+      }
+    }
+  }
+
+  // 3. Environmental Rule: RIVER_LOW_DO
+  // Alerts when nearby connected natural river water quality station detects DO < 3.0 mg/L
+  for (const wqStation of waterQualityStations) {
+    if (
+      wqStation.verificationStatus === 'VERIFIED' &&
+      wqStation.freshness !== 'STALE'
+    ) {
+      const readings =
+        wqStation.readings && wqStation.readings.length > 0
+          ? wqStation.readings
+          : wqStation.latestReading
+            ? [wqStation.latestReading]
+            : [];
+
+      const doReading = readings.find(
+        (r) => r.parameter === 'dissolved_oxygen' || r.parameter === 'do'
+      );
+
+      if (
+        doReading &&
+        typeof doReading.value === 'number' &&
+        doReading.value < riverLowDoThreshold &&
+        doReading.status !== 'SUSPECT'
+      ) {
+        const stId = wqStation.id || 'station';
+        const dedupeKey = `ENV_RIVER_DO_${farmId}_${stId}_${todayKey}`;
+
+        if (!existingKeys.has(dedupeKey)) {
+          const obsTimeStr = new Date(doReading.observedAt).toLocaleTimeString('th-TH', {
+            timeZone: 'Asia/Bangkok',
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+
+          const alert: EvaluatedAlertItem = {
+            pondId: null,
+            title: `เฝ้าระวัง: ออกซิเจนในน้ำธรรมชาติลดต่ำ (${doReading.value} mg/L)`,
+            message: `สถานี ${wqStation.name || 'ต้นทาง'} ตรวจวัดค่าออกซิเจนละลายน้ำ (DO) ได้ ${doReading.value} mg/L เมื่อ ${obsTimeStr} น. ซึ่งต่ำกว่าเกณฑ์ปลอดภัย (${riverLowDoThreshold} mg/L) เสี่ยงสัตว์น้ำน็อคน้ำหากเปิดประตูระบายน้ำสูบเข้าบ่อเลี้ยง แนะนำชะลอการเปิดรับน้ำและตรวจวัดค่าน้ำจริงหน้าบานประตูก่อนจัดการน้ำ`,
+            severity: 'WARNING',
+            status: 'UNREAD',
+            dedupeKey,
+            ruleCode: 'ENV_RIVER_LOW_DO',
+            sourceObservationTime: new Date(doReading.observedAt).toISOString(),
             createdAt: new Date().toISOString(),
           };
 
